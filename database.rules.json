@@ -1,0 +1,51 @@
+{
+    "rules": {
+        "sessions": {
+            ".read": true,
+            ".write": "auth != null",
+            ".indexOn": [
+                "vendorId",
+                "status"
+            ],
+            "$sessionId": {
+                ".read": true,
+                ".write": "auth != null || !data.exists()",
+                ".validate": "newData.hasChildren(['refId', 'stopCode'])"
+            }
+        },
+        "locations": {
+            ".read": true,
+            ".write": "auth != null",
+            "$sessionId": {
+                ".read": true,
+                ".write": true
+            }
+        },
+        "superAdmins": {
+            ".read": "auth != null",
+            ".write": false
+        },
+        "adminInvites": {
+            ".read": "auth != null && (root.child('admins').child(auth.uid).exists() || auth.token.email == 'info@deproductdojo.com')",
+            ".write": "auth != null && (root.child('admins').child(auth.uid).exists() || auth.token.email == 'info@deproductdojo.com')"
+        },
+        "admins": {
+            ".read": "auth != null",
+            ".write": "auth != null && auth.token.email == 'info@deproductdojo.com'"
+        },
+        "vendors": {
+            ".read": "auth != null",
+            "$vendorId": {
+                ".write": "auth != null && (auth.uid == $vendorId || root.child('admins').child(auth.uid).exists() || auth.token.email == 'info@deproductdojo.com')"
+            }
+        },
+        "riders": {
+            ".read": "auth != null",
+            ".write": "auth != null && (root.child('vendors').child(auth.uid).exists() || root.child('admins').child(auth.uid).exists() || auth.token.email == 'info@deproductdojo.com')"
+        },
+        "customers": {
+            ".read": "auth != null",
+            ".write": "auth != null && (root.child('admins').child(auth.uid).exists() || auth.token.email == 'info@deproductdojo.com')"
+        }
+    }
+}

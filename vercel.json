@@ -1,0 +1,26 @@
+{
+  "version": 2,
+  "buildCommand": "cd admin-app && npm install && npm run build",
+  "outputDirectory": ".",
+  "routes": [
+    { "src": "/admin/(.*)", "dest": "/admin-app/dist/$1" },
+    { "src": "/admin", "dest": "/admin-app/dist/index.html" },
+    { "src": "/(.*\\.html)", "dest": "/$1" },
+    { "src": "/(.*\\.js)", "dest": "/$1" },
+    { "src": "/(.*\\.css)", "dest": "/$1" },
+    { "src": "/(.*\\.svg)", "dest": "/$1" },
+    { "src": "/(.*\\.png)", "dest": "/$1" },
+    { "src": "/(.*\\.webp)", "dest": "/$1" },
+    { "src": "/", "dest": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "X-XSS-Protection", "value": "1; mode=block" }
+      ]
+    }
+  ]
+}

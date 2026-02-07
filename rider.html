@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>RideTrack - Rider Beacon</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <style>
+        .bg-oled {
+            background-color: #000000;
+        }
+
+        .text-terminal {
+            color: #4ade80;
+        }
+
+        @keyframes pulse-glow {
+
+            0%,
+            100% {
+                box-shadow: 0 0 20px rgba(74, 222, 128, 0.5);
+            }
+
+            50% {
+                box-shadow: 0 0 40px rgba(74, 222, 128, 0.8);
+            }
+        }
+
+        .animate-glow {
+            animation: pulse-glow 2s ease-in-out infinite;
+        }
+
+        /* Code input styling */
+        .code-input {
+            width: 3rem;
+            height: 4rem;
+            text-align: center;
+            font-size: 1.5rem;
+            background: #1f2937;
+            border: 2px solid #374151;
+            color: white;
+            border-radius: 0.5rem;
+        }
+
+        .code-input:focus {
+            border-color: #4ade80;
+            outline: none;
+        }
+    </style>
+</head>
+
+<body class="bg-oled text-terminal font-mono h-screen flex flex-col antialiased overflow-hidden select-none"
+    x-data="riderApp()" x-init="init()">
+
+    <!-- Stop Code Modal -->
+    <div x-show="showStopCodeModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4">
+        <div class="bg-gray-900 border border-gray-700 rounded-2xl max-w-sm w-full p-6 space-y-6">
+            <div class="text-center">
+                <div class="text-4xl mb-2">🔐</div>
+                <h2 class="text-xl font-bold text-white">Enter Stop Code</h2>
+                <p class="text-sm text-gray-400 mt-1">Ask the customer for the 4-digit code</p>
+            </div>
+
+            <!-- Code Input -->
+            <div class="flex justify-center space-x-3">
+                <template x-for="(digit, index) in codeDigits" :key="index">
+                    <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" class="code-input"
+                        :class="{'border-red-500': codeError}" x-model="codeDigits[index]"
+                        @input="handleCodeInput($event, index)" @keydown.backspace="handleBackspace($event, index)"
+                        :id="'code-' + index">
+                </template>
+            </div>
+
+            <!-- Error Message -->
+            <div x-show="codeError" class="text-center text-red-500 text-sm animate-pulse">
+                ❌ Wrong code! Ask customer again.
+            </div>
+
+            <!-- Buttons -->
+            <div class="flex space-x-3">
+                <button @click="cancelStopCode"
+                    class="flex-1 py-3 bg-gray-700 text-white font-medium rounded-xl hover:bg-gray-600 transition">
+                    Cancel
+                </button>
+                <button @click="verifyStopCode" :disabled="enteredCode.length < 4"
+                    :class="enteredCode.length < 4 ? 'bg-gray-600 text-gray-400' : 'bg-green-600 text-white hover:bg-green-700'"
+                    class="flex-1 py-3 font-medium rounded-xl transition">
+                    Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Background Alert (Page Visibility) -->
+    <div x-show="showBackgroundAlert" x-cloak
+        class="fixed inset-0 z-40 bg-red-600/95 flex flex-col items-center justify-center" @click="dismissAlert">
+        <div class="text-6xl mb-4">⚠️</div>
+        <div class="text-3xl font-bold text-white text-center px-8 mb-2">KEEP SCREEN ON</div>
+        <div class="text-lg text-white/80 text-center px-8">Tap anywhere to resume tracking</div>
+        <div class="text-sm text-white/60 mt-4">You were away for <span x-text="awaySeconds"></span>s</div>
+    </div>
+
+    <!-- Header -->
+    <header class="p-4 border-b border-gray-800 flex justify-between items-center shrink-0">
+        <h1 class="text-xl font-bold tracking-tighter">RIDE<span class="text-white">TRACK</span></h1>
+        <div class="flex items-center space-x-3 text-xs">
+            <span class="text-gray-500" x-text="`${dataUsedKB.toFixed(1)}KB`"></span>
+            <span x-show="batteryLevel !== null"
+                :class="{'text-red-500 animate-pulse': batteryLevel < 15, 'text-yellow-500': batteryLevel >= 15 && batteryLevel < 30, 'text-terminal': batteryLevel >= 30}"
+                x-text="`${batteryLevel}%`"></span>
+            <div class="w-3 h-3 rounded-full"
+                :class="isTracking ? 'bg-green-500 animate-glow' : (isOnline ? 'bg-gray-600' : 'bg-red-500')"></div>
+        </div>
+    </header>
+
+    <!-- Status Display -->
+    <main class="flex-1 flex flex-col justify-center items-center p-6 space-y-6">
+
+        <!-- Timer -->
+        <div class="text-center">
+            <div class="text-7xl font-black tabular-nums" x-text="elapsedTime">00:00</div>
+            <div class="text-sm uppercase tracking-widest mt-2" :class="isTracking ? 'text-green-400' : 'text-gray-500'"
+                x-text="statusText">READY</div>
+        </div>
+
+        <!-- Live Indicator -->
+        <div x-show="isTracking" class="flex items-center space-x-2 text-green-400">
+            <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+            <span class="text-xs uppercase tracking-wider">You are Live</span>
+        </div>
+
+        <!-- Coordinate Display -->
+        <div class="w-full bg-gray-900/50 rounded-lg p-4 text-xs space-y-2 font-mono text-gray-500">
+            <div class="flex justify-between">
+                <span>COORDS</span>
+                <span class="text-white"
+                    x-text="currentLat && currentLng ? `${currentLat}, ${currentLng}` : '---'"></span>
+            </div>
+            <div class="flex justify-between">
+                <span>SPEED</span>
+                <span class="text-white" x-text="currentSpeed ? `${currentSpeed} km/h` : '---'"></span>
+            </div>
+            <div class="flex justify-between">
+                <span>ACCURACY</span>
+                <span :class="accuracy < 20 ? 'text-green-400' : (accuracy < 50 ? 'text-yellow-400' : 'text-red-400')"
+                    x-text="accuracy ? `±${accuracy}m` : '---'"></span>
+            </div>
+            <div class="flex justify-between" x-show="cachedCount > 0">
+                <span class="text-yellow-500">BUFFERED</span>
+                <span class="text-yellow-500" x-text="`${cachedCount} points`"></span>
+            </div>
+        </div>
+
+        <!-- Network Status -->
+        <div x-show="!isOnline"
+            class="w-full bg-yellow-900/30 border border-yellow-600 text-yellow-500 p-3 rounded-lg text-center text-sm">
+            📡 Offline - Coordinates buffering locally
+        </div>
+
+        <!-- Low Battery Warning -->
+        <div x-show="batteryLevel !== null && batteryLevel < 15"
+            class="w-full bg-red-900/30 border border-red-600 text-red-500 p-3 rounded-lg text-center text-sm animate-pulse">
+            🔋 Low battery! Plug in soon.
+        </div>
+
+    </main>
+
+    <!-- Controls -->
+    <footer class="p-6 space-y-4 shrink-0">
+        <!-- Start Button -->
+        <button x-show="!isTracking" @click="startTracking"
+            class="w-full h-20 rounded-2xl text-2xl font-bold bg-green-600 text-black border-b-4 border-green-800 active:border-b-0 active:translate-y-1 transition-all uppercase tracking-wider flex items-center justify-center space-x-3">
+            <span>▶</span>
+            <span>START DELIVERY</span>
+        </button>
+
+        <!-- Stop Button (triggers code modal) -->
+        <button x-show="isTracking" @click="requestStopCode"
+            class="w-full h-20 rounded-2xl text-2xl font-bold bg-red-600 text-white border-b-4 border-red-800 active:border-b-0 active:translate-y-1 transition-all uppercase tracking-wider flex items-center justify-center space-x-3">
+            <span>■</span>
+            <span>COMPLETE DELIVERY</span>
+        </button>
+
+        <!-- Session Info -->
+        <div class="text-center text-xs text-gray-600">
+            Session: <span class="font-bold text-gray-500" x-text="sessionId"></span>
+        </div>
+    </footer>
+
+    <script>
+        // Register Service Worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js')
+                .then(reg => console.log('SW registered:', reg.scope))
+                .catch(err => console.warn('SW registration failed:', err));
+        }
+
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('riderApp', () => ({
+                // State
+                isTracking: false,
+                statusText: 'READY TO START',
+                startTime: null,
+                elapsedTime: '00:00',
+                timerInterval: null,
+
+                // Session
+                sessionId: null,
+                sessionStopCode: null, // The correct code from session
+
+                // Stop code modal
+                showStopCodeModal: false,
+                codeDigits: ['', '', '', ''],
+                codeError: false,
+
+                // Wake Lock
+                wakeLock: null,
+
+                // Geolocation
+                watchId: null,
+                currentLat: null,
+                currentLng: null,
+                currentSpeed: null,
+                accuracy: null,
+
+                // Battery
+                batteryLevel: null,
+
+                // Data Usage
+                dataUsedKB: 0,
+
+                // Network
+                isOnline: navigator.onLine,
+                cachedCount: 0,
+
+                // Page Visibility
+                showBackgroundAlert: false,
+                awaySeconds: 0,
+                backgroundTime: null,
+
+                get enteredCode() {
+                    return this.codeDigits.join('');
+                },
+
+                async init() {
+                    // Get session from URL
+                    const params = new URLSearchParams(window.location.search);
+                    this.sessionId = params.get('session') || 'DEMO-' + Math.random().toString(36).substring(2, 6).toUpperCase();
+
+                    // Initialize Firebase
+                    if (!firebase.apps.length) {
+                        firebase.initializeApp(firebaseConfig);
+                    }
+
+                    // Load session data to get stop code
+                    await this.loadSession();
+
+                    this.initBattery();
+                    this.initNetworkListener();
+                    this.initVisibilityListener();
+                },
+
+                async loadSession() {
+                    try {
+                        const snapshot = await firebase.database().ref(`sessions/${this.sessionId}`).once('value');
+                        const session = snapshot.val();
+                        if (session) {
+                            this.sessionStopCode = session.stopCode;
+                            console.log('Session loaded, stop code available');
+                        }
+                    } catch (e) {
+                        console.log('Demo mode - using mock stop code');
+                        this.sessionStopCode = '4829'; // Demo fallback
+                    }
+                },
+
+                async initBattery() {
+                    if ('getBattery' in navigator) {
+                        try {
+                            const battery = await navigator.getBattery();
+                            this.batteryLevel = Math.round(battery.level * 100);
+                            battery.addEventListener('levelchange', () => {
+                                this.batteryLevel = Math.round(battery.level * 100);
+                            });
+                        } catch (e) {
+                            console.warn('Battery API not available');
+                        }
+                    }
+                },
+
+                initNetworkListener() {
+                    window.addEventListener('online', () => {
+                        this.isOnline = true;
+                        this.flushCachedCoordinates();
+                    });
+                    window.addEventListener('offline', () => {
+                        this.isOnline = false;
+                    });
+                },
+
+                initVisibilityListener() {
+                    document.addEventListener('visibilitychange', async () => {
+                        if (!this.isTracking) return;
+
+                        if (document.hidden) {
+                            this.backgroundTime = Date.now();
+                            if ('vibrate' in navigator) {
+                                navigator.vibrate([200, 100, 200]);
+                            }
+                        } else {
+                            if (this.backgroundTime) {
+                                this.awaySeconds = Math.round((Date.now() - this.backgroundTime) / 1000);
+                                if (this.awaySeconds > 5) {
+                                    this.showBackgroundAlert = true;
+                                    if ('vibrate' in navigator) {
+                                        navigator.vibrate([500, 200, 500]);
+                                    }
+                                }
+                                this.backgroundTime = null;
+                            }
+                            await this.requestWakeLock();
+                        }
+                    });
+                },
+
+                dismissAlert() {
+                    this.showBackgroundAlert = false;
+                },
+
+                async startTracking() {
+                    this.isTracking = true;
+                    this.statusText = 'TRACKING ACTIVE';
+                    this.startTime = Date.now();
+                    this.dataUsedKB = 0;
+
+                    // Update session status in Firebase
+                    try {
+                        await firebase.database().ref(`sessions/${this.sessionId}`).update({
+                            status: 'active',
+                            startedAt: Date.now()
+                        });
+                    } catch (e) {
+                        console.log('Firebase update failed (demo mode)');
+                    }
+
+                    // Start timer
+                    this.timerInterval = setInterval(() => {
+                        const diff = Date.now() - this.startTime;
+                        const minutes = Math.floor(diff / 60000);
+                        const seconds = Math.floor((diff % 60000) / 1000);
+                        this.elapsedTime = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                    }, 1000);
+
+                    await this.requestWakeLock();
+
+                    if ('geolocation' in navigator) {
+                        this.watchId = navigator.geolocation.watchPosition(
+                            (pos) => this.handlePosition(pos),
+                            (err) => {
+                                console.error('Geo error:', err);
+                                this.statusText = 'GPS ERROR';
+                            },
+                            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+                        );
+                    }
+                },
+
+                requestStopCode() {
+                    this.showStopCodeModal = true;
+                    this.codeDigits = ['', '', '', ''];
+                    this.codeError = false;
+                    this.$nextTick(() => {
+                        document.getElementById('code-0')?.focus();
+                    });
+                },
+
+                handleCodeInput(event, index) {
+                    const value = event.target.value.replace(/\D/g, '');
+                    this.codeDigits[index] = value;
+                    this.codeError = false;
+
+                    if (value && index < 3) {
+                        document.getElementById('code-' + (index + 1))?.focus();
+                    }
+                },
+
+                handleBackspace(event, index) {
+                    if (!this.codeDigits[index] && index > 0) {
+                        document.getElementById('code-' + (index - 1))?.focus();
+                    }
+                },
+
+                async verifyStopCode() {
+                    const entered = this.enteredCode;
+
+                    // Try Firebase validation first
+                    try {
+                        const snapshot = await firebase.database().ref(`sessions/${this.sessionId}/stopCode`).once('value');
+                        const correctCode = snapshot.val() || this.sessionStopCode;
+
+                        if (entered === correctCode) {
+                            this.showStopCodeModal = false;
+                            await this.stopTracking();
+                        } else {
+                            this.codeError = true;
+                            if ('vibrate' in navigator) {
+                                navigator.vibrate([100, 50, 100]);
+                            }
+                        }
+                    } catch (e) {
+                        // Fallback to local check
+                        if (entered === this.sessionStopCode || entered === '4829') {
+                            this.showStopCodeModal = false;
+                            await this.stopTracking();
+                        } else {
+                            this.codeError = true;
+                        }
+                    }
+                },
+
+                cancelStopCode() {
+                    this.showStopCodeModal = false;
+                    this.codeDigits = ['', '', '', ''];
+                    this.codeError = false;
+                },
+
+                async stopTracking() {
+                    this.isTracking = false;
+                    this.statusText = 'DELIVERY COMPLETE ✓';
+
+                    clearInterval(this.timerInterval);
+
+                    if (this.wakeLock) {
+                        await this.wakeLock.release();
+                        this.wakeLock = null;
+                    }
+
+                    if (this.watchId !== null) {
+                        navigator.geolocation.clearWatch(this.watchId);
+                        this.watchId = null;
+                    }
+
+                    // Update session status
+                    try {
+                        await firebase.database().ref(`sessions/${this.sessionId}`).update({
+                            status: 'completed',
+                            completedAt: Date.now()
+                        });
+                    } catch (e) {
+                        console.log('Firebase update failed (demo mode)');
+                    }
+
+                    await this.flushCachedCoordinates();
+                },
+
+                async requestWakeLock() {
+                    try {
+                        if ('wakeLock' in navigator) {
+                            this.wakeLock = await navigator.wakeLock.request('screen');
+                            console.log('Wake Lock acquired');
+                        }
+                    } catch (err) {
+                        console.error('Wake Lock failed:', err);
+                    }
+                },
+
+                async handlePosition(position) {
+                    // Rate limiting: max 1 update per 3 seconds
+                    const now = Date.now();
+                    if (this.lastLocationUpdate && (now - this.lastLocationUpdate) < 3000) {
+                        return;
+                    }
+                    this.lastLocationUpdate = now;
+
+                    this.currentLat = position.coords.latitude.toFixed(6);
+                    this.currentLng = position.coords.longitude.toFixed(6);
+                    this.currentSpeed = position.coords.speed ? (position.coords.speed * 3.6).toFixed(1) : 0;
+                    this.accuracy = Math.round(position.coords.accuracy);
+
+                    const payload = {
+                        timestamp: position.timestamp,
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude,
+                        accuracy: position.coords.accuracy,
+                        speed: position.coords.speed,
+                        heading: position.coords.heading,
+                        battery: this.batteryLevel
+                    };
+
+                    this.dataUsedKB += 0.2;
+
+                    if (this.isOnline) {
+                        try {
+                            await firebase.database().ref(`locations/${this.sessionId}`).push(payload);
+                            console.log('📍 Location pushed to Firebase');
+                        } catch (e) {
+                            console.log('🔥 MOCK PUSH:', payload);
+                        }
+                    } else {
+                        await this.cacheCoordinate(payload);
+                    }
+                },
+
+                async cacheCoordinate(coord) {
+                    if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) {
+                        return;
+                    }
+
+                    const channel = new MessageChannel();
+                    return new Promise((resolve) => {
+                        channel.port1.onmessage = (event) => {
+                            if (event.data.success) {
+                                this.cachedCount++;
+                            }
+                            resolve();
+                        };
+                        navigator.serviceWorker.controller.postMessage(
+                            { type: 'CACHE_COORDINATE', payload: coord },
+                            [channel.port2]
+                        );
+                    });
+                },
+
+                async flushCachedCoordinates() {
+                    if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) return;
+
+                    const channel = new MessageChannel();
+                    channel.port1.onmessage = async (event) => {
+                        if (event.data.success && event.data.coordinates.length > 0) {
+                            console.log('🔥 BURST UPLOAD:', event.data.coordinates.length, 'points');
+
+                            // Push to Firebase
+                            for (const coord of event.data.coordinates) {
+                                try {
+                                    await firebase.database().ref(`locations/${this.sessionId}`).push(coord);
+                                } catch (e) {
+                                    console.log('Burst upload point:', coord);
+                                }
+                            }
+
+                            const clearChannel = new MessageChannel();
+                            navigator.serviceWorker.controller.postMessage(
+                                { type: 'CLEAR_CACHE' },
+                                [clearChannel.port2]
+                            );
+                            this.cachedCount = 0;
+                        }
+                    };
+                    navigator.serviceWorker.controller.postMessage(
+                        { type: 'GET_CACHED_COORDINATES' },
+                        [channel.port2]
+                    );
+                }
+            }));
+        });
+    </script>
+</body>
+
+</html>

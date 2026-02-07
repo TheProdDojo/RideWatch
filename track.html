@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Track Your Order - RideTrack</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+    <!-- Leaflet -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <style>
+        #map {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+        }
+
+        .overlay {
+            position: relative;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .overlay>* {
+            pointer-events: auto;
+        }
+
+        .leaflet-control-attribution {
+            display: none;
+        }
+
+        @keyframes rider-pulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.15);
+            }
+        }
+
+        .rider-marker {
+            animation: rider-pulse 2s ease-in-out infinite;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-100 font-sans" x-data="customerTracker()" x-init="init()">
+
+    <!-- Phone Registration Modal -->
+    <div x-show="showPhoneModal" x-cloak
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4">
+            <div class="text-center">
+                <div class="text-4xl mb-2">📱</div>
+                <h2 class="text-xl font-bold text-slate-800">Enter Your Phone Number</h2>
+                <p class="text-sm text-slate-500 mt-1">This helps us identify you for this delivery</p>
+            </div>
+            <form @submit.prevent="registerPhone">
+                <div class="space-y-4">
+                    <input type="tel" x-model="customerPhone" required
+                        class="w-full px-4 py-4 text-lg text-center border-2 border-slate-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition font-mono"
+                        placeholder="08012345678" pattern="[0-9]{10,11}">
+                    <button type="submit"
+                        class="w-full py-4 bg-green-600 text-white font-bold text-lg rounded-xl hover:bg-green-700 transition">
+                        Start Tracking
+                    </button>
+                </div>
+            </form>
+            <p class="text-xs text-center text-slate-400">Your number is only used for this delivery</p>
+        </div>
+    </div>
+
+    <!-- Full-screen Map -->
+    <div id="map" x-show="!showPhoneModal"></div>
+
+    <!-- Overlay UI -->
+    <div x-show="!showPhoneModal" class="overlay min-h-screen flex flex-col">
+
+        <!-- Header with Vendor Branding -->
+        <header class="bg-white/95 backdrop-blur border-b border-slate-200 py-4 px-6">
+            <div class="flex items-center justify-between max-w-lg mx-auto">
+                <div class="flex items-center space-x-3">
+                    <div
+                        class="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center text-white font-bold text-lg">
+                        🏪
+                    </div>
+                    <div>
+                        <div class="font-semibold text-slate-800">Your Order is On The Way!</div>
+                        <div class="text-xs text-slate-500" x-text="`Order: ${orderRef}`"></div>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <div class="text-2xl font-bold text-green-600" x-text="eta || '--'"></div>
+                    <div class="text-xs text-slate-500">ETA</div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Proximity Alert Banner -->
+        <div x-show="proximityAlertShown" x-cloak
+            class="bg-green-600 text-white px-4 py-3 flex items-center justify-between animate-pulse"
+            @click="proximityAlertShown = false">
+            <div class="flex items-center space-x-2">
+                <span class="text-xl">🔔</span>
+                <span class="font-semibold">Rider is nearby! Get your stop code ready.</span>
+            </div>
+            <span class="text-sm opacity-75">tap to dismiss</span>
+        </div>
+
+        <!-- Spacer -->
+        <div class="flex-1"></div>
+
+        <!-- Bottom Info Card -->
+        <div class="bg-white/95 backdrop-blur border-t border-slate-200 p-6">
+            <div class="max-w-lg mx-auto space-y-4">
+
+                <!-- STOP CODE - Prominent Display -->
+                <div class="bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl p-4 text-center">
+                    <div class="text-sm opacity-90 mb-1">🔐 Give This Code To Your Rider</div>
+                    <div class="text-4xl font-mono font-black tracking-[0.3em]" x-text="stopCode">----</div>
+                    <div class="text-xs opacity-75 mt-1">They need this code to complete the delivery</div>
+                </div>
+
+                <!-- Status -->
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-12 h-12 rounded-full flex items-center justify-center text-2xl"
+                            :class="status === 'active' ? 'bg-green-100' : 'bg-yellow-100'">
+                            <span x-show="status === 'active'">🛵</span>
+                            <span x-show="status !== 'active'">⏳</span>
+                        </div>
+                        <div>
+                            <div class="font-semibold text-slate-800" x-text="statusLabel"></div>
+                            <div class="text-sm text-slate-500" x-text="lastUpdate"></div>
+                        </div>
+                    </div>
+                    <div class="text-right text-sm text-slate-500">
+                        <div x-text="`${distanceKm} km away`"></div>
+                    </div>
+                </div>
+
+                <!-- Progress Bar -->
+                <div class="h-2 bg-slate-200 rounded-full overflow-hidden">
+                    <div class="h-full bg-gradient-to-r from-green-400 to-emerald-500 transition-all duration-1000 rounded-full"
+                        :style="`width: ${progress}%`"></div>
+                </div>
+
+                <!-- Privacy Note -->
+                <div class="text-center text-xs text-slate-400">
+                    🔒 Your rider's identity is protected for safety
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('customerTracker', () => ({
+                map: null,
+                riderMarker: null,
+                destinationMarker: null,
+
+                // Phone registration
+                showPhoneModal: true,
+                customerPhone: '',
+
+                // Session info
+                sessionId: null,
+                orderRef: 'Loading...',
+                stopCode: '----',
+
+                // Status
+                status: 'pending',
+                statusLabel: 'Waiting for rider...',
+                lastUpdate: '',
+
+                // Location
+                riderLat: 6.5244,
+                riderLng: 3.3792,
+                destLat: 6.4541,
+                destLng: 3.3947,
+
+                // Calculated
+                distanceKm: '0.0',
+                eta: '-- min',
+                progress: 0,
+
+                // Proximity alerts
+                hasPlayedAlert: false,
+                proximityAlertShown: false,
+
+                firebaseEnabled: false,
+
+                init() {
+                    // Get session from URL
+                    const params = new URLSearchParams(window.location.search);
+                    this.sessionId = params.get('session') || 'demo';
+
+                    // Try to initialize Firebase (gracefully handle if not configured)
+                    try {
+                        if (typeof firebase !== 'undefined' && typeof firebaseConfig !== 'undefined' &&
+                            firebaseConfig.apiKey && firebaseConfig.apiKey !== 'YOUR_API_KEY') {
+                            if (!firebase.apps.length) {
+                                firebase.initializeApp(firebaseConfig);
+                            }
+                            this.firebaseEnabled = true;
+                        }
+                    } catch (e) {
+                        console.log('Firebase not available, using demo mode');
+                        this.firebaseEnabled = false;
+                    }
+
+                    // Check if customer already registered for this session
+                    const savedPhone = localStorage.getItem(`customer_${this.sessionId}`);
+                    if (savedPhone) {
+                        this.customerPhone = savedPhone;
+                        this.showPhoneModal = false;
+                        this.loadSession();
+                        this.$nextTick(() => {
+                            this.initMap();
+                        });
+                    }
+                },
+
+                async registerPhone() {
+                    if (!this.customerPhone || this.customerPhone.length < 10) {
+                        alert('Please enter a valid phone number');
+                        return;
+                    }
+
+                    // Save to localStorage
+                    localStorage.setItem(`customer_${this.sessionId}`, this.customerPhone);
+
+                    // Update Firebase with customer phone (if available)
+                    if (this.firebaseEnabled) {
+                        try {
+                            await firebase.database().ref(`sessions/${this.sessionId}`).update({
+                                customerPhone: this.customerPhone,
+                                customerRegisteredAt: Date.now()
+                            });
+                        } catch (e) {
+                            console.log('Firebase update failed:', e);
+                        }
+                    }
+
+                    this.showPhoneModal = false;
+                    this.loadSession();
+
+                    // Initialize map after modal closes
+                    this.$nextTick(() => {
+                        this.initMap();
+                    });
+                },
+
+                async loadSession() {
+                    // If Firebase is not enabled, go straight to demo mode
+                    if (!this.firebaseEnabled) {
+                        console.log('Using demo mode (Firebase not configured)');
+                        this.orderRef = 'ORD-DEMO';
+                        this.stopCode = '4829';
+                        this.startMockUpdates();
+                        return;
+                    }
+
+                    // Try to load from Firebase
+                    try {
+                        const snapshot = await firebase.database().ref(`sessions/${this.sessionId}`).once('value');
+                        const session = snapshot.val();
+                        if (session) {
+                            this.orderRef = session.refId || this.sessionId;
+                            this.stopCode = session.stopCode || '----';
+                            this.status = session.status || 'pending';
+                            this.subscribeToUpdates();
+                        } else {
+                            // No session found, use demo data
+                            this.orderRef = 'ORD-DEMO';
+                            this.stopCode = '4829';
+                            this.startMockUpdates();
+                        }
+                    } catch (e) {
+                        console.log('Firebase error, using demo mode:', e);
+                        this.orderRef = 'ORD-DEMO';
+                        this.stopCode = '4829';
+                        this.startMockUpdates();
+                    }
+                },
+
+                subscribeToUpdates() {
+                    // Subscribe to session changes
+                    firebase.database().ref(`sessions/${this.sessionId}`).on('value', (snapshot) => {
+                        const session = snapshot.val();
+                        if (session) {
+                            this.status = session.status;
+                            if (session.status === 'completed') {
+                                this.statusLabel = 'Delivery Complete! 🎉';
+                            }
+                        }
+                    });
+
+                    // Subscribe to location updates
+                    firebase.database().ref(`locations/${this.sessionId}`).orderByKey().limitToLast(1)
+                        .on('child_added', (snapshot) => {
+                            const loc = snapshot.val();
+                            if (loc) {
+                                this.riderLat = loc.lat;
+                                this.riderLng = loc.lng;
+                                this.updateRiderMarker();
+                                this.updateCalculations();
+                                this.lastUpdate = 'Updated just now';
+                                this.status = 'active';
+                                this.statusLabel = 'Rider is heading your way';
+                            }
+                        });
+                },
+
+                initMap() {
+                    if (this.map) return;
+
+                    const centerLat = (this.riderLat + this.destLat) / 2;
+                    const centerLng = (this.riderLng + this.destLng) / 2;
+
+                    this.map = L.map('map', {
+                        zoomControl: false,
+                        attributionControl: false
+                    }).setView([centerLat, centerLng], 13);
+
+                    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                        maxZoom: 19
+                    }).addTo(this.map);
+
+                    // Destination marker
+                    const destIcon = L.divIcon({
+                        className: 'dest-marker',
+                        html: `<div style="background: white; width: 36px; height: 36px; border-radius: 50%; border: 3px solid #10b981; box-shadow: 0 4px 12px rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center; font-size: 18px;">📍</div>`,
+                        iconSize: [36, 36],
+                        iconAnchor: [18, 18]
+                    });
+                    this.destinationMarker = L.marker([this.destLat, this.destLng], { icon: destIcon })
+                        .addTo(this.map);
+
+                    this.updateRiderMarker();
+
+                    const bounds = L.latLngBounds([
+                        [this.riderLat, this.riderLng],
+                        [this.destLat, this.destLng]
+                    ]);
+                    this.map.fitBounds(bounds, { padding: [80, 80] });
+                },
+
+                updateRiderMarker() {
+                    const riderIcon = L.divIcon({
+                        className: 'rider-marker',
+                        html: `<div style="background: linear-gradient(135deg, #22c55e, #10b981); width: 44px; height: 44px; border-radius: 50%; border: 4px solid white; box-shadow: 0 4px 16px rgba(34,197,94,0.4); display: flex; align-items: center; justify-content: center; font-size: 22px;">🛵</div>`,
+                        iconSize: [44, 44],
+                        iconAnchor: [22, 22]
+                    });
+
+                    if (this.riderMarker) {
+                        this.riderMarker.setLatLng([this.riderLat, this.riderLng]);
+                    } else if (this.map) {
+                        this.riderMarker = L.marker([this.riderLat, this.riderLng], { icon: riderIcon })
+                            .addTo(this.map);
+                    }
+                },
+
+                calculateDistance(lat1, lng1, lat2, lng2) {
+                    const R = 6371;
+                    const dLat = (lat2 - lat1) * Math.PI / 180;
+                    const dLng = (lng2 - lng1) * Math.PI / 180;
+                    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                        Math.sin(dLng / 2) * Math.sin(dLng / 2);
+                    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                    return R * c;
+                },
+
+                updateCalculations() {
+                    const dist = this.calculateDistance(
+                        this.riderLat, this.riderLng,
+                        this.destLat, this.destLng
+                    );
+                    this.distanceKm = dist.toFixed(1);
+
+                    const etaMinutes = Math.round((dist * 1.5 / 25) * 60);
+                    if (etaMinutes < 1) {
+                        this.eta = 'Arriving!';
+                        this.statusLabel = 'Your rider has arrived!';
+                    } else if (etaMinutes < 60) {
+                        this.eta = `${etaMinutes} min`;
+                    } else {
+                        const hours = Math.floor(etaMinutes / 60);
+                        const mins = etaMinutes % 60;
+                        this.eta = `${hours}h ${mins}m`;
+                    }
+
+                    // Trigger sound alert when ETA < 5 min (only once)
+                    if (etaMinutes <= 5 && !this.hasPlayedAlert) {
+                        this.triggerProximityAlert();
+                    }
+
+                    this.progress = Math.max(0, Math.min(100, (1 - dist / 10) * 100));
+                },
+
+                triggerProximityAlert() {
+                    this.hasPlayedAlert = true;
+                    this.proximityAlertShown = true;
+
+                    // Vibrate if available
+                    if ('vibrate' in navigator) {
+                        navigator.vibrate([200, 100, 200, 100, 200]);
+                    }
+
+                    // Play sound using Web Audio API
+                    try {
+                        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                        const oscillator = audioCtx.createOscillator();
+                        const gainNode = audioCtx.createGain();
+
+                        oscillator.connect(gainNode);
+                        gainNode.connect(audioCtx.destination);
+
+                        oscillator.frequency.value = 800;
+                        oscillator.type = 'sine';
+                        gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+
+                        oscillator.start(audioCtx.currentTime);
+                        oscillator.stop(audioCtx.currentTime + 0.5);
+
+                        // Play three short beeps
+                        setTimeout(() => {
+                            const osc2 = audioCtx.createOscillator();
+                            const gain2 = audioCtx.createGain();
+                            osc2.connect(gain2);
+                            gain2.connect(audioCtx.destination);
+                            osc2.frequency.value = 1000;
+                            osc2.type = 'sine';
+                            gain2.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                            gain2.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                            osc2.start(audioCtx.currentTime);
+                            osc2.stop(audioCtx.currentTime + 0.3);
+                        }, 600);
+                    } catch (e) {
+                        console.log('Audio not available');
+                    }
+                },
+
+                startMockUpdates() {
+                    this.updateCalculations();
+
+                    setInterval(() => {
+                        const step = 0.0005;
+                        if (this.riderLat < this.destLat) this.riderLat += step * (Math.random() * 0.5 + 0.5);
+                        if (this.riderLat > this.destLat) this.riderLat -= step * (Math.random() * 0.5 + 0.5);
+                        if (this.riderLng < this.destLng) this.riderLng += step * (Math.random() * 0.5 + 0.5);
+                        if (this.riderLng > this.destLng) this.riderLng -= step * (Math.random() * 0.5 + 0.5);
+
+                        this.updateRiderMarker();
+                        this.updateCalculations();
+                        this.lastUpdate = 'Updated just now';
+                        this.status = 'active';
+                        this.statusLabel = 'Rider is heading your way';
+                    }, 3000);
+                }
+            }));
+        });
+    </script>
+</body>
+
+</html>
