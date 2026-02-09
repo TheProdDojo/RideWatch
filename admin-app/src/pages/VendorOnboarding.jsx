@@ -18,7 +18,7 @@ export default function VendorOnboarding() {
         }
         // If already a vendor with profile, go to vendor dashboard
         if (role === 'vendor' && vendorProfile) {
-            window.location.href = '/admin.html';
+            window.location.href = '/vendor';
         }
         // If user is admin/superadmin, go to admin dashboard
         if (role === 'admin' || role === 'superadmin') {
@@ -47,8 +47,8 @@ export default function VendorOnboarding() {
                 phone: phone.trim(),
                 address: address.trim()
             });
-            // Redirect to vendor dashboard (admin.html)
-            window.location.href = '/admin.html';
+            // Redirect to vendor dashboard
+            window.location.href = '/vendor';
         } catch (error) {
             setError('Failed to complete registration');
             console.error(error);

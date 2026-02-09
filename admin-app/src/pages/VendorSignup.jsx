@@ -148,11 +148,18 @@ export default function VendorSignup() {
                 <div className="mt-6 pt-6 border-t border-slate-700 text-center">
                     <p className="text-sm text-slate-400">
                         Already have an account?{' '}
-                        <Link to="/login" className="text-green-400 hover:text-green-300">
+                        <Link to="/vendor/login" className="text-green-400 hover:text-green-300">
                             Sign in →
                         </Link>
                     </p>
                 </div>
+
+                <p className="mt-4 text-center text-xs text-slate-600">
+                    A product of{' '}
+                    <a href="https://theproductdojo.com" target="_blank" rel="noopener noreferrer" className="text-green-500 hover:text-green-400">
+                        The Product Dojo
+                    </a>
+                </p>
             </div>
         </div>
     );

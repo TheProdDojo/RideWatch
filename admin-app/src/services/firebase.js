@@ -1,4 +1,4 @@
-// RideTrack Admin - Firebase Configuration
+// RideWatch Admin - Firebase Configuration
 import { initializeApp } from 'firebase/app';
 import {
     getAuth,

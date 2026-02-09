@@ -160,7 +160,7 @@ export default function Dashboard() {
         <div className="p-8">
             <div className="mb-8">
                 <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-                <p className="text-slate-400">Welcome to RideTrack Admin</p>
+                <p className="text-slate-400">Welcome to RideWatch Admin</p>
             </div>
 
             {/* Stats Grid */}

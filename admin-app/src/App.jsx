@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
+import VendorDashboard from './pages/VendorDashboard';
 import Vendors from './pages/Vendors';
 import Riders from './pages/Riders';
 import Customers from './pages/Customers';
@@ -9,6 +10,7 @@ import Deliveries from './pages/Deliveries';
 import AdminManagement from './pages/AdminManagement';
 import Login from './pages/Login';
 import VendorSignup from './pages/VendorSignup';
+import VendorLogin from './pages/VendorLogin';
 import VendorOnboarding from './pages/VendorOnboarding';
 import './index.css';
 
@@ -29,6 +31,29 @@ function ProtectedRoute({ children, requireAdmin = false }) {
 
   // If route requires admin/superadmin access
   if (requireAdmin && !isAdmin) {
+    return <Navigate to="/vendor" replace />;
+  }
+
+  return children;
+}
+
+function VendorRoute({ children }) {
+  const { user, loading, isVendor, isAdmin } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="text-white text-lg">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/vendor/login" replace />;
+  }
+
+  // Admins accessing vendor route get redirected to admin dashboard
+  if (isAdmin) {
     return <Navigate to="/" replace />;
   }
 
@@ -58,24 +83,52 @@ function SuperAdminRoute({ children }) {
   return children;
 }
 
+// Smart home route that redirects based on role
+function HomeRedirect() {
+  const { isVendor, isAdmin, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="text-white text-lg">Loading...</div>
+      </div>
+    );
+  }
+
+  // Vendors go to vendor dashboard
+  if (isVendor && !isAdmin) {
+    return <Navigate to="/vendor" replace />;
+  }
+
+  // Admins/SuperAdmins go to admin dashboard
+  return <Dashboard />;
+}
+
 function AppRoutes() {
   return (
     <Routes>
       {/* Public routes */}
+      {/* Admin login */}
       <Route path="/login" element={<Login />} />
+
+      {/* Vendor routes */}
+      <Route path="/vendor/login" element={<VendorLogin />} />
       <Route path="/vendor/signup" element={<VendorSignup />} />
       <Route path="/vendor/onboarding" element={<VendorOnboarding />} />
+
+      {/* Vendor dashboard route - PUBLIC (guest-first flow) */}
+      <Route path="/vendor" element={<VendorDashboard />} />
 
       {/* Admin dashboard routes */}
       <Route
         path="/"
         element={
-          <ProtectedRoute requireAdmin>
+          <ProtectedRoute>
             <Layout />
           </ProtectedRoute>
         }
       >
-        <Route index element={<Dashboard />} />
+        <Route index element={<HomeRedirect />} />
         <Route path="vendors" element={<Vendors />} />
         <Route path="riders" element={<Riders />} />
         <Route path="customers" element={<Customers />} />
@@ -102,3 +155,4 @@ export default function App() {
     </BrowserRouter>
   );
 }
+

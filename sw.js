@@ -1,4 +1,4 @@
-// RideTrack - Service Worker
+// RideWatch - Service Worker
 // Handles offline coordinate caching and burst-upload on reconnect
 
 const CACHE_NAME = 'ridetrack-v1';

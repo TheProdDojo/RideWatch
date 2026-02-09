@@ -1,4 +1,4 @@
-# Deploying RideTrack to Production
+# Deploying RideWatch to Production
 
 ## Quick Start
 
