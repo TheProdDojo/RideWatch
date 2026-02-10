@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>RideWatch - Rider Beacon</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="manifest" href="manifest.json">
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
     <!-- Firebase -->
@@ -59,6 +60,40 @@
 <body class="bg-oled text-terminal font-mono h-screen flex flex-col antialiased overflow-hidden select-none"
     x-data="riderApp()" x-init="init()">
 
+    <!-- Rider PIN Modal (Security Gate) -->
+    <div x-show="showPinModal" x-cloak class="fixed inset-0 z-[60] flex items-center justify-center bg-black/95 p-4">
+        <div
+            class="bg-gray-900 border border-green-900/50 rounded-2xl max-w-sm w-full p-6 space-y-6 shadow-2xl shadow-green-900/20">
+            <div class="text-center">
+                <div class="text-4xl mb-2">🔑</div>
+                <h2 class="text-xl font-bold text-white">Security Check</h2>
+                <p class="text-sm text-gray-400 mt-1">Enter the 4-digit PIN from the Vendor</p>
+            </div>
+
+            <!-- PIN Input -->
+            <div class="flex justify-center space-x-3">
+                <template x-for="(digit, index) in pinDigits" :key="index">
+                    <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" class="code-input"
+                        :class="{'border-red-500': pinError, 'border-green-500 text-green-400': !pinError && digit}"
+                        x-model="pinDigits[index]" @input="handlePinInput($event, index)"
+                        @keydown.backspace="handlePinBackspace($event, index)" :id="'pin-' + index">
+                </template>
+            </div>
+
+            <!-- Error Message -->
+            <div x-show="pinError" class="text-center text-red-500 text-sm animate-pulse">
+                ❌ Incorrect PIN
+            </div>
+
+            <!-- Unlock Button -->
+            <button @click="verifyPin" :disabled="pinDigits.join('').length < 4"
+                :class="pinDigits.join('').length < 4 ? 'bg-gray-800 text-gray-500' : 'bg-green-600 text-white hover:bg-green-700'"
+                class="w-full py-4 font-bold rounded-xl transition uppercase tracking-widest text-lg">
+                UNLOCK APP
+            </button>
+        </div>
+    </div>
+
     <!-- Stop Code Modal -->
     <div x-show="showStopCodeModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4">
         <div class="bg-gray-900 border border-gray-700 rounded-2xl max-w-sm w-full p-6 space-y-6">
@@ -104,7 +139,29 @@
         <div class="text-6xl mb-4">⚠️</div>
         <div class="text-3xl font-bold text-white text-center px-8 mb-2">KEEP SCREEN ON</div>
         <div class="text-lg text-white/80 text-center px-8">Tap anywhere to resume tracking</div>
-        <div class="text-sm text-white/60 mt-4">You were away for <span x-text="awaySeconds"></span>s</div>
+        <!-- Cancellation Overlay -->
+        <div x-show="isCancelled" x-cloak
+            class="fixed inset-0 z-[60] bg-red-900/95 flex flex-col items-center justify-center p-8 text-center animate-fade-in">
+            <div class="text-8xl mb-6">🚫</div>
+            <h2 class="text-4xl font-black text-white mb-2">ORDER CANCELLED</h2>
+            <p class="text-xl text-red-200">The vendor has cancelled this delivery.</p>
+            <div class="mt-8 p-4 bg-red-950/50 rounded-xl border border-red-500/30">
+                <p class="text-sm text-red-300">Tracking stopped automatically.</p>
+            </div>
+            <button @click="window.location.reload()"
+                class="mt-8 px-8 py-3 bg-white text-red-900 font-bold rounded-xl active:scale-95 transition">
+                Close / Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div x-data="{ show: false, message: '' }"
+        @show-toast.window="show = true; message = $event.detail; setTimeout(() => show = false, 3000)" x-show="show"
+        x-transition.opacity.duration.300ms
+        class="fixed top-6 left-1/2 transform -translate-x-1/2 z-50 bg-slate-800 text-white px-6 py-3 rounded-xl shadow-2xl border border-slate-600 flex items-center gap-3">
+        <span>🔔</span>
+        <span x-text="message" class="font-medium text-sm"></span>
     </div>
 
     <!-- Header -->
@@ -123,9 +180,50 @@
     <!-- Status Display -->
     <main class="flex-1 flex flex-col justify-center items-center p-6 space-y-6">
 
+        <!-- Mission Card (Address Info) -->
+        <div x-show="pickupLocation || dropoffLocation"
+            class="w-full bg-slate-800 rounded-2xl p-5 space-y-3 border border-slate-700 shadow-lg">
+            <div x-show="pickupLocation" class="flex items-start space-x-3">
+                <div class="text-xl mt-0.5">📦</div>
+                <div class="min-w-0">
+                    <div class="text-[10px] text-slate-400 uppercase tracking-wider font-bold mb-0.5">Pickup</div>
+                    <div class="text-sm font-medium text-white leading-tight"
+                        x-text="pickupLocation ? pickupLocation.address : ''"></div>
+                </div>
+                <a :href="pickupLocation ? `https://www.google.com/maps/search/?api=1&query=${pickupLocation.lat},${pickupLocation.lng}` : '#'"
+                    target="_blank"
+                    class="ml-auto w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-blue-400 hover:bg-slate-600 transition">
+                    ↗
+                </a>
+            </div>
+            <div x-show="dropoffLocation" class="flex items-start space-x-3 pt-3 border-t border-slate-700/50">
+                <div class="text-xl mt-0.5">📍</div>
+                <div class="min-w-0">
+                    <div class="text-[10px] text-slate-400 uppercase tracking-wider font-bold mb-0.5">Dropoff</div>
+                    <div class="text-sm font-medium text-white leading-tight"
+                        x-text="dropoffLocation ? dropoffLocation.address : ''">
+                    </div>
+                    <div x-show="customerName" class="text-xs text-slate-400 mt-1" x-text="'To: ' + customerName">
+                    </div>
+                </div>
+                <div class="ml-auto flex flex-col space-y-2">
+                    <a :href="dropoffLocation ? `https://www.google.com/maps/search/?api=1&query=${dropoffLocation.lat},${dropoffLocation.lng}` : '#'"
+                        target="_blank"
+                        class="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-blue-400 hover:bg-slate-600 transition">
+                        ↗
+                    </a>
+                    <a x-show="customerPhone" :href="`tel:${customerPhone}`"
+                        class="w-8 h-8 rounded-full bg-green-900/50 flex items-center justify-center text-green-400 hover:bg-green-900 transition">
+                        📞
+                    </a>
+                </div>
+            </div>
+        </div>
+
         <!-- Timer -->
         <div class="text-center">
-            <div class="text-7xl font-black tabular-nums" x-text="elapsedTime">00:00</div>
+            <div class="font-black tabular-nums transition-all duration-300"
+                :class="elapsedTime.length > 5 ? 'text-5xl' : 'text-7xl'" x-text="elapsedTime">00:00</div>
             <div class="text-sm uppercase tracking-widest mt-2" :class="isTracking ? 'text-green-400' : 'text-gray-500'"
                 x-text="statusText">READY</div>
         </div>
@@ -173,18 +271,32 @@
     </main>
 
     <!-- Controls -->
-    <footer class="p-6 space-y-4 shrink-0">
+    <footer class="p-6 space-y-4 shrink-0" x-data="{ isCompleted: false }"
+        x-effect="isCompleted = statusText.includes('COMPLETE')">
+        <!-- Completed State -->
+        <div x-show="isCompleted"
+            class="w-full h-20 rounded-2xl bg-slate-800 text-slate-400 border border-slate-700 flex items-center justify-center font-bold text-xl uppercase tracking-wider">
+            Delivery Completed
+        </div>
+
         <!-- Start Button -->
-        <button x-show="!isTracking" @click="startTracking"
-            class="w-full h-20 rounded-2xl text-2xl font-bold bg-green-600 text-black border-b-4 border-green-800 active:border-b-0 active:translate-y-1 transition-all uppercase tracking-wider flex items-center justify-center space-x-3">
-            <span>▶</span>
+        <button x-show="!isTracking && !isCompleted" @click="startTracking(false)"
+            class="w-full h-24 rounded-3xl text-2xl font-black bg-gradient-to-br from-green-500 to-green-600 text-black shadow-lg shadow-green-900/50 border-b-4 border-green-800 active:border-b-0 active:translate-y-1 active:shadow-none transition-all uppercase tracking-wider flex items-center justify-center space-x-3 group">
+            <span class="group-hover:scale-110 transition-transform">▶</span>
             <span>START DELIVERY</span>
         </button>
 
-        <!-- Stop Button (triggers code modal) -->
-        <button x-show="isTracking" @click="requestStopCode"
-            class="w-full h-20 rounded-2xl text-2xl font-bold bg-red-600 text-white border-b-4 border-red-800 active:border-b-0 active:translate-y-1 transition-all uppercase tracking-wider flex items-center justify-center space-x-3">
-            <span>■</span>
+        <!-- Confirm Pickup Button (NEW) -->
+        <button x-show="isTracking && !pickupConfirmed && !isCompleted" @click="confirmPickup()"
+            class="w-full h-24 rounded-3xl text-2xl font-black bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-lg shadow-orange-900/50 border-b-4 border-orange-800 active:border-b-0 active:translate-y-1 active:shadow-none transition-all uppercase tracking-wider flex items-center justify-center space-x-3 group">
+            <span class="group-hover:scale-110 transition-transform">📦</span>
+            <span>CONFIRM PICKUP</span>
+        </button>
+
+        <!-- Complete Delivery Button (only after pickup) -->
+        <button x-show="isTracking && pickupConfirmed && !isCompleted" @click="requestStopCode"
+            class="w-full h-24 rounded-3xl text-2xl font-black bg-gradient-to-br from-red-500 to-red-700 text-white shadow-lg shadow-red-900/50 border-b-4 border-red-900 active:border-b-0 active:translate-y-1 active:shadow-none transition-all uppercase tracking-wider flex items-center justify-center space-x-3 group">
+            <span class="group-hover:scale-110 transition-transform">■</span>
             <span>COMPLETE DELIVERY</span>
         </button>
 
@@ -214,11 +326,22 @@
                 // Session
                 sessionId: null,
                 sessionStopCode: null, // The correct code from session
+                pickupConfirmed: false, // NEW: Has rider confirmed pickup?
+                pickupLocation: null, // NEW: Pickup coords from vendor
+                dropoffLocation: null, // NEW: Dropoff coords from vendor
+                customerName: null,
+                customerPhone: null,
 
                 // Stop code modal
                 showStopCodeModal: false,
                 codeDigits: ['', '', '', ''],
                 codeError: false,
+
+                // PIN Security
+                showPinModal: false,
+                pinDigits: ['', '', '', ''],
+                pinError: false,
+                sessionRiderPin: null,
 
                 // Wake Lock
                 wakeLock: null,
@@ -235,6 +358,9 @@
 
                 // Data Usage
                 dataUsedKB: 0,
+                customerName: null,
+                customerPhone: null,
+                isCancelled: false, // Fixed: Added missing state
 
                 // Network
                 isOnline: navigator.onLine,
@@ -272,8 +398,47 @@
                         const snapshot = await firebase.database().ref(`sessions/${this.sessionId}`).once('value');
                         const session = snapshot.val();
                         if (session) {
+                            this.sessionId = session.id;
                             this.sessionStopCode = session.stopCode;
+                            this.pickupLocation = session.pickup || null; // Load pickup location
+                            this.dropoffLocation = session.dropoff || null; // Load dropoff location
+                            this.customerName = session.customerName || null;
+                            this.customerPhone = session.customerPhone || null;
                             console.log('Session loaded, stop code available');
+
+                            // Listen for cancellation
+                            firebase.database().ref(`sessions/${this.sessionId}/status`).on('value', (snap) => {
+                                if (snap.val() === 'cancelled') {
+                                    this.handleCancellation();
+                                }
+                            });
+
+                            // Check PIN Security Logic
+                            if (session.riderPin) {
+                                const storedAuth = localStorage.getItem(`rider_auth_${this.sessionId}`);
+                                if (storedAuth !== session.riderPin) {
+                                    this.sessionRiderPin = session.riderPin;
+                                    this.showPinModal = true;
+                                    // Focus first input after a delay
+                                    setTimeout(() => document.getElementById('pin-0')?.focus(), 500);
+                                }
+                            }
+
+                            // Resume tracking based on status
+                            if (session.status === 'picked_up' || session.status === 'active') {
+                                console.log('Resuming session...');
+                                this.startTime = session.startedAt || Date.now();
+                                this.pickupConfirmed = true; // Already picked up
+                                this.startTracking(true);
+                            } else if (session.status === 'en_route_to_pickup') {
+                                console.log('Resuming en route to pickup...');
+                                this.startTime = session.startedAt || Date.now();
+                                this.startTracking(true);
+                            } else if (session.status === 'completed') {
+                                this.statusText = 'DELIVERY COMPLETE ✓';
+                                this.isCompleted = true;
+                                this.elapsedTime = 'DONE';
+                            }
                         }
                     } catch (e) {
                         console.log('Demo mode - using mock stop code');
@@ -307,25 +472,31 @@
 
                 initVisibilityListener() {
                     document.addEventListener('visibilitychange', async () => {
-                        if (!this.isTracking) return;
-
+                        // Always handle background time logic
                         if (document.hidden) {
-                            this.backgroundTime = Date.now();
-                            if ('vibrate' in navigator) {
-                                navigator.vibrate([200, 100, 200]);
+                            if (this.isTracking) {
+                                this.backgroundTime = Date.now();
+                                if ('vibrate' in navigator) navigator.vibrate([200, 100, 200]);
                             }
                         } else {
                             if (this.backgroundTime) {
-                                this.awaySeconds = Math.round((Date.now() - this.backgroundTime) / 1000);
-                                if (this.awaySeconds > 5) {
-                                    this.showBackgroundAlert = true;
-                                    if ('vibrate' in navigator) {
-                                        navigator.vibrate([500, 200, 500]);
+                                const diff = (Date.now() - this.backgroundTime) / 1000;
+                                if (diff > 10) {
+                                    this.awaySeconds = Math.round(diff);
+                                    if (this.isTracking) {
+                                        this.showBackgroundAlert = true;
+                                        if ('vibrate' in navigator) navigator.vibrate([200, 100, 200]);
                                     }
                                 }
                                 this.backgroundTime = null;
                             }
-                            await this.requestWakeLock();
+
+                            // CRITICAL: Re-acquire lock and restart geo when coming back
+                            if (this.isTracking) {
+                                console.log('📱 App visible again - restoring tracking...');
+                                await this.requestWakeLock();
+                                this.restartGeolocation();
+                            }
                         }
                     });
                 },
@@ -334,42 +505,150 @@
                     this.showBackgroundAlert = false;
                 },
 
-                async startTracking() {
+                async startTracking(isResuming = false) {
                     this.isTracking = true;
                     this.statusText = 'TRACKING ACTIVE';
-                    this.startTime = Date.now();
-                    this.dataUsedKB = 0;
 
-                    // Update session status in Firebase
-                    try {
-                        await firebase.database().ref(`sessions/${this.sessionId}`).update({
-                            status: 'active',
-                            startedAt: Date.now()
-                        });
-                    } catch (e) {
-                        console.log('Firebase update failed (demo mode)');
+                    if (!isResuming) {
+                        this.startTime = Date.now();
+                        this.dataUsedKB = 0;
+
+                        // Update session status in Firebase
+                        try {
+                            await firebase.database().ref(`sessions/${this.sessionId}`).update({
+                                status: 'en_route_to_pickup', // NEW: Start as en_route
+                                startedAt: Date.now()
+                            });
+                        } catch (e) {
+                            console.log('Firebase update failed (demo mode)');
+                        }
+                    } else {
+                        // Resuming: Calculate data used based on time (approx)
+                        const elapsedSecs = (Date.now() - this.startTime) / 1000;
+                        this.dataUsedKB = elapsedSecs * 0.05; // Approx 0.05KB/s
                     }
 
                     // Start timer
                     this.timerInterval = setInterval(() => {
                         const diff = Date.now() - this.startTime;
-                        const minutes = Math.floor(diff / 60000);
+                        const hours = Math.floor(diff / 3600000);
+                        const minutes = Math.floor((diff % 3600000) / 60000);
                         const seconds = Math.floor((diff % 60000) / 1000);
-                        this.elapsedTime = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+                        if (hours > 0) {
+                            this.elapsedTime = `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                        } else {
+                            this.elapsedTime = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                        }
                     }, 1000);
 
+                    // Start robust tracking
                     await this.requestWakeLock();
+                    this.startGeolocation();
+                    this.startHeartbeat();
+                },
 
-                    if ('geolocation' in navigator) {
-                        this.watchId = navigator.geolocation.watchPosition(
-                            (pos) => this.handlePosition(pos),
-                            (err) => {
-                                console.error('Geo error:', err);
-                                this.statusText = 'GPS ERROR';
-                            },
-                            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-                        );
+                startGeolocation() {
+                    if (!('geolocation' in navigator)) {
+                        window.dispatchEvent(new CustomEvent('show-toast', { detail: 'Geolocation is not supported' }));
+                        return;
                     }
+
+                    // Clear existing watcher
+                    if (this.watchId !== null) navigator.geolocation.clearWatch(this.watchId);
+
+                    const options = {
+                        enableHighAccuracy: true,
+                        timeout: 15000,
+                        maximumAge: 0
+                    };
+
+                    console.log('📡 Starting Geolocation Watcher...');
+                    this.watchId = navigator.geolocation.watchPosition(
+                        (pos) => this.handlePosition(pos),
+                        (err) => {
+                            console.error('Geo error:', err);
+                            // Retry on typical connection/timeout errors
+                            if (err.code === 2 || err.code === 3) {
+                                console.warn('⚠️ Position unavailable/timeout - Retrying in 2s...');
+                                setTimeout(() => this.restartGeolocation(), 2000);
+                            } else if (err.code === 1) {
+                                this.statusText = 'GPS PERMISSION DENIED';
+                            } else {
+                                this.codeError = true;
+                            }
+                        },
+                        options
+                    );
+                },
+
+                restartGeolocation() {
+                    if (!this.isTracking) return;
+                    console.log('♻️ Restarting Geolocation...');
+                    this.startGeolocation();
+                },
+
+                startHeartbeat() {
+                    if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
+
+                    this.heartbeatInterval = setInterval(() => {
+                        if (!this.isTracking) return;
+
+                        const now = Date.now();
+                        const lastUpdate = this.lastLocationUpdate || this.startTime;
+                        const timeSinceUpdate = now - lastUpdate;
+
+                        // If no update for 12 seconds, restart
+                        if (timeSinceUpdate > 12000) {
+                            console.warn(`💓 Heartbeat: No location for ${Math.round(timeSinceUpdate / 1000)}s - Restarting`);
+                            this.restartGeolocation();
+                            // Reset timestamp to avoid loop while restarting
+                            this.lastLocationUpdate = now;
+                        }
+                    }, 5000); // Check every 5s
+                },
+
+                handleCancellation() {
+                    this.isCancelled = true;
+                    this.isTracking = false;
+                    this.statusText = 'ORDER CANCELLED 🚫';
+                    if (this.watchId) navigator.geolocation.clearWatch(this.watchId);
+                    if (this.wakeLock) this.wakeLock.release().catch(() => { });
+
+                    // Alert the rider
+                    if ('vibrate' in navigator) navigator.vibrate([500, 200, 500, 200, 500]);
+                    window.dispatchEvent(new CustomEvent('show-toast', { detail: 'Order has been CANCELLED by vendor' }));
+                },
+
+                // NEW: Confirm pickup function
+                async confirmPickup() {
+                    this.pickupConfirmed = true;
+                    this.statusText = 'PACKAGE PICKED UP ✓';
+
+                    // Haptic feedback
+                    if ('vibrate' in navigator) {
+                        navigator.vibrate([100, 50, 100]);
+                    }
+
+                    // Update Firebase with pickup confirmation
+                    try {
+                        await firebase.database().ref(`sessions/${this.sessionId}`).update({
+                            status: 'picked_up',
+                            pickedUpAt: Date.now(),
+                            pickedUpLocation: {
+                                lat: this.currentLat,
+                                lng: this.currentLng
+                            }
+                        });
+                        console.log('Pickup confirmed in Firebase');
+                    } catch (e) {
+                        console.log('Firebase update failed (demo mode)');
+                    }
+
+                    // After brief feedback, update status text
+                    setTimeout(() => {
+                        this.statusText = 'EN ROUTE TO CUSTOMER';
+                    }, 2000);
                 },
 
                 requestStopCode() {
@@ -379,6 +658,41 @@
                     this.$nextTick(() => {
                         document.getElementById('code-0')?.focus();
                     });
+                },
+
+                // PIN Handling
+                handlePinInput(e, index) {
+                    const value = e.target.value;
+                    if (!/^\d*$/.test(value)) {
+                        this.pinDigits[index] = '';
+                        return;
+                    }
+                    this.pinError = false;
+                    if (value.length === 1 && index < 3) {
+                        document.getElementById('pin-' + (index + 1)).focus();
+                    }
+                },
+
+                handlePinBackspace(e, index) {
+                    if (e.key === 'Backspace' && !this.pinDigits[index] && index > 0) {
+                        document.getElementById('pin-' + (index - 1)).focus();
+                    }
+                },
+
+                verifyPin() {
+                    const entered = this.pinDigits.join('');
+                    if (entered === this.sessionRiderPin) {
+                        // Success
+                        localStorage.setItem(`rider_auth_${this.sessionId}`, this.sessionRiderPin);
+                        this.showPinModal = false;
+                        if ('vibrate' in navigator) navigator.vibrate([50, 50, 50]);
+                    } else {
+                        // Fail
+                        this.pinError = true;
+                        if ('vibrate' in navigator) navigator.vibrate([200, 100, 200]);
+                        this.pinDigits = ['', '', '', ''];
+                        setTimeout(() => document.getElementById('pin-0')?.focus(), 100);
+                    }
                 },
 
                 handleCodeInput(event, index) {
@@ -433,6 +747,7 @@
 
                 async stopTracking() {
                     this.isTracking = false;
+                    this.isCompleted = true;
                     this.statusText = 'DELIVERY COMPLETE ✓';
 
                     clearInterval(this.timerInterval);
@@ -440,6 +755,11 @@
                     if (this.wakeLock) {
                         await this.wakeLock.release();
                         this.wakeLock = null;
+                    }
+
+                    if (this.heartbeatInterval) {
+                        clearInterval(this.heartbeatInterval);
+                        this.heartbeatInterval = null;
                     }
 
                     if (this.watchId !== null) {
@@ -453,6 +773,10 @@
                             status: 'completed',
                             completedAt: Date.now()
                         });
+
+                        // Trigger Email Notification
+                        this.sendEmailNotification();
+
                     } catch (e) {
                         console.log('Firebase update failed (demo mode)');
                     }
@@ -498,8 +822,20 @@
 
                     if (this.isOnline) {
                         try {
+                            // Push to locations history
                             await firebase.database().ref(`locations/${this.sessionId}`).push(payload);
-                            console.log('📍 Location pushed to Firebase');
+
+                            // Update current session state for Vendor Map
+                            await firebase.database().ref(`sessions/${this.sessionId}`).update({
+                                lat: position.coords.latitude,
+                                lng: position.coords.longitude,
+                                lastPing: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+                                battery: this.batteryLevel,
+                                speed: (position.coords.speed * 3.6).toFixed(1),
+                                heading: position.coords.heading
+                            });
+
+                            console.log('📍 Location pushed to Firebase & Session updated');
                         } catch (e) {
                             console.log('🔥 MOCK PUSH:', payload);
                         }
@@ -526,6 +862,31 @@
                             [channel.port2]
                         );
                     });
+                },
+
+                async sendEmailNotification() {
+                    try {
+                        // Get session data to find vendor email
+                        const snapshot = await firebase.database().ref(`sessions/${this.sessionId}`).once('value');
+                        const session = snapshot.val();
+
+                        if (session && session.vendorEmail) {
+                            fetch('/api/email', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    to: session.vendorEmail,
+                                    riderName: session.riderName || 'Rider',
+                                    refId: session.refId || 'Order',
+                                    stopCode: session.stopCode
+                                })
+                            }).then(res => res.json())
+                                .then(data => console.log('Email sent:', data))
+                                .catch(err => console.error('Email failed:', err));
+                        }
+                    } catch (e) {
+                        console.error('Failed to trigger email:', e);
+                    }
                 },
 
                 async flushCachedCoordinates() {
@@ -558,8 +919,22 @@
                         [channel.port2]
                     );
                 }
+
             }));
         });
+
+        // Register Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(registration => {
+                        console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                    })
+                    .catch(err => {
+                        console.log('ServiceWorker registration failed: ', err);
+                    });
+            });
+        }
     </script>
 </body>
 

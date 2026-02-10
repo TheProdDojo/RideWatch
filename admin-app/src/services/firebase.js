@@ -231,6 +231,11 @@ export const dbHelpers = {
         });
     },
 
+    updateVendorProfile: async (uid, updates) => {
+        const vendorRef = ref(db, `vendors/${uid}`);
+        await update(vendorRef, { ...updates, updatedAt: Date.now() });
+    },
+
     getVendorProfile: async (uid) => {
         const vendorRef = ref(db, `vendors/${uid}`);
         const snapshot = await get(vendorRef);
@@ -301,6 +306,32 @@ export const dbHelpers = {
         });
     },
 
+    // Vendor Specific Helpers (CRM)
+    getVendorRiders: (vendorId, callback) => {
+        const ridersRef = query(ref(db, 'riders'), orderByChild('vendorId'), equalTo(vendorId));
+        return onValue(ridersRef, (snapshot) => {
+            const data = snapshot.val() || {};
+            const riders = Object.entries(data).map(([id, rider]) => ({ id, ...rider }));
+            callback(riders);
+        });
+    },
+
+    getVendorCustomers: (vendorId, callback) => {
+        const customersRef = query(ref(db, 'customers'), orderByChild('vendorId'), equalTo(vendorId));
+        return onValue(customersRef, (snapshot) => {
+            const data = snapshot.val() || {};
+            const customers = Object.entries(data).map(([id, customer]) => ({ id, ...customer }));
+            callback(customers);
+        });
+    },
+
+    createCustomer: async (customerData) => {
+        const customersRef = ref(db, 'customers');
+        const newRef = push(customersRef);
+        await set(newRef, { ...customerData, createdAt: Date.now() });
+        return newRef.key;
+    },
+
     updateSession: async (sessionId, updates) => {
         const sessionRef = ref(db, `sessions/${sessionId}`);
         await update(sessionRef, updates);
@@ -318,9 +349,9 @@ export const isDemoMode = () => firebaseConfig.apiKey === 'YOUR_API_KEY';
 
 export const demoData = {
     vendors: [
-        { id: 'v1', displayName: 'QuickMeds Pharmacy', email: 'quickmeds@example.com', status: 'active', createdAt: Date.now() - 86400000, sessionCount: 45 },
-        { id: 'v2', displayName: 'Lagos Eats', email: 'lagoseats@example.com', status: 'active', createdAt: Date.now() - 172800000, sessionCount: 127 },
-        { id: 'v3', displayName: 'FreshMart', email: 'freshmart@example.com', status: 'suspended', createdAt: Date.now() - 259200000, sessionCount: 8 }
+        { id: 'v1', businessName: 'QuickMeds Pharmacy', email: 'quickmeds@example.com', status: 'active', createdAt: Date.now() - 86400000, sessionCount: 45 },
+        { id: 'v2', businessName: 'Lagos Eats', email: 'lagoseats@example.com', status: 'active', createdAt: Date.now() - 172800000, sessionCount: 127 },
+        { id: 'v3', businessName: 'FreshMart', email: 'freshmart@example.com', status: 'suspended', createdAt: Date.now() - 259200000, sessionCount: 8 }
     ],
     riders: [
         { id: 'r1', name: 'Chidi Okonkwo', phone: '08012345678', vendorId: 'v1', status: 'active', totalDeliveries: 156 },

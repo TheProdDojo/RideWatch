@@ -3,11 +3,12 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function VendorLogin() {
-    const { user, signInWithEmail, signInWithGoogle, role, isDemoMode } = useAuth();
+    const { user, signInWithEmail, signInWithGoogle, resetPassword, role, isDemoMode } = useAuth();
     const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
+    const [message, setMessage] = useState('');
     const [loading, setLoading] = useState(false);
     const [mode, setMode] = useState('login'); // 'login' or 'forgot'
 
@@ -47,12 +48,30 @@ export default function VendorLogin() {
         }
     };
 
+    const handleForgotPassword = async (e) => {
+        e.preventDefault();
+        setError('');
+        setMessage('');
+        setLoading(true);
+        try {
+            await resetPassword(email);
+            setMessage('Password reset link sent! Check your email.');
+        } catch (error) {
+            setError('Failed to send reset email. ' + error.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-green-900 via-slate-900 to-slate-900 flex items-center justify-center p-4">
-            <div className="bg-slate-800 border border-slate-700 rounded-2xl p-8 w-full max-w-md">
+            <div className="bg-slate-800 border border-slate-700 rounded-2xl p-8 w-full max-w-md relative">
+                <Link to="/vendor" className="absolute top-6 left-6 text-slate-400 hover:text-white transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+                </Link>
                 <div className="text-center mb-8">
                     <h1 className="text-3xl font-bold text-white mb-2">
-                        <span className="text-green-400">Ride</span>Track
+                        <span className="text-green-400">Ride</span>Watch
                     </h1>
                     <p className="text-slate-400">Vendor Portal</p>
                 </div>
@@ -66,6 +85,12 @@ export default function VendorLogin() {
                 {error && (
                     <div className="bg-red-900/30 border border-red-600 text-red-400 rounded-lg p-4 mb-6 text-sm">
                         {error}
+                    </div>
+                )}
+
+                {message && (
+                    <div className="bg-green-900/30 border border-green-600 text-green-400 rounded-lg p-4 mb-6 text-sm">
+                        {message}
                     </div>
                 )}
 
@@ -127,7 +152,7 @@ export default function VendorLogin() {
 
                         <div className="text-center">
                             <button
-                                onClick={() => { setMode('forgot'); setError(''); }}
+                                onClick={() => { setMode('forgot'); setError(''); setMessage(''); }}
                                 className="text-sm text-slate-400 hover:text-green-400 transition"
                             >
                                 Forgot password?
@@ -135,7 +160,7 @@ export default function VendorLogin() {
                         </div>
                     </>
                 ) : (
-                    <form className="space-y-4">
+                    <form onSubmit={handleForgotPassword} className="space-y-4">
                         <p className="text-slate-400 text-sm mb-4">
                             Enter your email and we'll send you a reset link.
                         </p>

@@ -26,7 +26,7 @@ export default function Riders() {
 
     const getVendorName = (vendorId) => {
         const vendor = vendors.find(v => v.id === vendorId);
-        return vendor?.displayName || vendorId || '-';
+        return vendor?.businessName || vendorId || '-';
     };
 
     const columns = [
@@ -140,7 +140,7 @@ export default function Riders() {
                         >
                             <option value="">Select vendor...</option>
                             {vendors.map((v) => (
-                                <option key={v.id} value={v.id}>{v.displayName}</option>
+                                <option key={v.id} value={v.id}>{v.businessName}</option>
                             ))}
                         </Select>
                     </FormField>

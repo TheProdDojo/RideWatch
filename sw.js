@@ -86,16 +86,75 @@ self.addEventListener('message', async (event) => {
 });
 
 // Basic fetch handler (pass-through for now)
-self.addEventListener('fetch', (event) => {
-    // For MVP, just pass through all requests
-    // In production, could cache static assets
-    event.respondWith(fetch(event.request));
-});
+const ASSETS_TO_CACHE = [
+    '/',
+    '/rider.html',
+    '/track.html',
+    '/index.html',
+    '/favicon.svg',
+    '/firebase-config.js'
+];
 
-self.addEventListener('install', () => {
+self.addEventListener('install', (event) => {
+    event.waitUntil(
+        caches.open(CACHE_NAME).then((cache) => {
+            console.log('Opened cache');
+            return cache.addAll(ASSETS_TO_CACHE);
+        })
+    );
     self.skipWaiting();
 });
 
-self.addEventListener('activate', () => {
+self.addEventListener('fetch', (event) => {
+    // Ignore cross-origin requests (CDNs, Firebase, etc.)
+    if (!event.request.url.startsWith(self.location.origin)) {
+        return;
+    }
+
+    // Ignore non-GET requests
+    if (event.request.method !== 'GET') {
+        return;
+    }
+
+    // For HTML pages, Network First (fresh content), fallback to Cache
+    if (event.request.mode === 'navigate') {
+        event.respondWith(
+            fetch(event.request)
+                .catch(() => {
+                    return caches.match(event.request);
+                })
+        );
+        return;
+    }
+
+    // For other assets, Stale-While-Revalidate or Cache First
+    // Here we use Stale-While-Revalidate for simplicity
+    event.respondWith(
+        caches.match(event.request).then((cachedResponse) => {
+            const fetchPromise = fetch(event.request).then((networkResponse) => {
+                const responseToCache = networkResponse.clone(); // Clone immediately
+                caches.open(CACHE_NAME).then((cache) => {
+                    cache.put(event.request, responseToCache);
+                });
+                return networkResponse;
+            });
+            return cachedResponse || fetchPromise;
+        })
+    );
+});
+
+self.addEventListener('activate', (event) => {
+    const cacheWhitelist = [CACHE_NAME];
+    event.waitUntil(
+        caches.keys().then((cacheNames) => {
+            return Promise.all(
+                cacheNames.map((cacheName) => {
+                    if (cacheWhitelist.indexOf(cacheName) === -1) {
+                        return caches.delete(cacheName);
+                    }
+                })
+            );
+        })
+    );
     self.clients.claim();
 });

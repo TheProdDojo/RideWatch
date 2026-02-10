@@ -7,7 +7,7 @@ export default function Vendors() {
     const [vendors, setVendors] = useState([]);
     const [modalOpen, setModalOpen] = useState(false);
     const [editingVendor, setEditingVendor] = useState(null);
-    const [formData, setFormData] = useState({ displayName: '', email: '', status: 'active' });
+    const [formData, setFormData] = useState({ businessName: '', email: '', status: 'active' });
 
     useEffect(() => {
         if (isDemoMode()) {
@@ -18,7 +18,7 @@ export default function Vendors() {
     }, []);
 
     const columns = [
-        { key: 'displayName', label: 'Name' },
+        { key: 'businessName', label: 'Business Name' },
         { key: 'email', label: 'Email' },
         {
             key: 'status',
@@ -40,14 +40,14 @@ export default function Vendors() {
 
     const handleCreate = () => {
         setEditingVendor(null);
-        setFormData({ displayName: '', email: '', status: 'active' });
+        setFormData({ businessName: '', email: '', status: 'active' });
         setModalOpen(true);
     };
 
     const handleEdit = (vendor) => {
         setEditingVendor(vendor);
         setFormData({
-            displayName: vendor.displayName,
+            businessName: vendor.businessName,
             email: vendor.email,
             status: vendor.status
         });
@@ -55,7 +55,7 @@ export default function Vendors() {
     };
 
     const handleDelete = async (vendor) => {
-        if (!confirm(`Delete ${vendor.displayName}?`)) return;
+        if (!confirm(`Delete ${vendor.businessName}?`)) return;
         if (isDemoMode()) {
             setVendors(vendors.filter(v => v.id !== vendor.id));
             return;
@@ -106,11 +106,11 @@ export default function Vendors() {
                 title={editingVendor ? 'Edit Vendor' : 'Add Vendor'}
             >
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    <FormField label="Display Name">
+                    <FormField label="Business Name">
                         <Input
                             type="text"
-                            value={formData.displayName}
-                            onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
+                            value={formData.businessName}
+                            onChange={(e) => setFormData({ ...formData, businessName: e.target.value })}
                             placeholder="QuickMeds Pharmacy"
                             required
                         />

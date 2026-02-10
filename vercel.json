@@ -3,6 +3,14 @@
   "outputDirectory": ".",
   "rewrites": [
     {
+      "source": "/vendor/:path*",
+      "destination": "/admin-app/dist/index.html"
+    },
+    {
+      "source": "/vendor",
+      "destination": "/admin-app/dist/index.html"
+    },
+    {
       "source": "/admin/:path*",
       "destination": "/admin-app/dist/:path*"
     },

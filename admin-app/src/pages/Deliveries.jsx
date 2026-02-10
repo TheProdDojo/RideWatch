@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import DataTable from '../components/DataTable';
+import SessionDetailsModal from '../components/SessionDetailsModal';
 import { dbHelpers, isDemoMode, demoData } from '../services/firebase';
 
 export default function Deliveries() {
     const [sessions, setSessions] = useState([]);
+    const [selectedSession, setSelectedSession] = useState(null);
     const [filter, setFilter] = useState('all');
     const [dateRange, setDateRange] = useState('week');
 
@@ -67,7 +69,8 @@ export default function Deliveries() {
                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${value === 'active' ? 'bg-green-500/20 text-green-400' :
                     value === 'completed' ? 'bg-blue-500/20 text-blue-400' :
                         value === 'pending' ? 'bg-amber-500/20 text-amber-400' :
-                            'bg-slate-600 text-slate-300'
+                            value === 'cancelled' ? 'bg-red-500/20 text-red-400' :
+                                'bg-slate-600 text-slate-300'
                     }`}>
                     {value}
                 </span>
@@ -77,6 +80,18 @@ export default function Deliveries() {
             key: 'createdAt',
             label: 'Created',
             render: (v) => v ? new Date(v).toLocaleString() : '-'
+        },
+        {
+            key: 'actions',
+            label: 'Actions',
+            render: (_, session) => (
+                <button
+                    onClick={() => setSelectedSession(session)}
+                    className="text-sm text-green-400 hover:text-green-300 font-medium"
+                >
+                    View Details
+                </button>
+            )
         }
     ];
 
@@ -111,7 +126,7 @@ export default function Deliveries() {
 
                     {/* Status Filter */}
                     <div className="flex gap-2">
-                        {['all', 'active', 'pending', 'completed'].map((f) => (
+                        {['all', 'active', 'pending', 'completed', 'cancelled'].map((f) => (
                             <button
                                 key={f}
                                 onClick={() => setFilter(f)}
@@ -141,6 +156,13 @@ export default function Deliveries() {
                 data={filteredSessions}
                 emptyMessage="No deliveries found for the selected filters"
             />
+
+            {selectedSession && (
+                <SessionDetailsModal
+                    session={selectedSession}
+                    onClose={() => setSelectedSession(null)}
+                />
+            )}
         </div>
     );
 }

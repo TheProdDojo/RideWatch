@@ -54,7 +54,7 @@ export default function Layout({ isVendorView = false }) {
                 {/* Logo */}
                 <div className="p-6 border-b border-slate-700">
                     <h1 className="text-xl font-bold">
-                        <span className="text-green-400">Ride</span>Track
+                        <span className="text-green-400">Ride</span>Watch
                         <span className="text-xs ml-2 text-slate-400">
                             {isVendorView ? 'Vendor' : 'Admin'}
                         </span>
@@ -62,7 +62,7 @@ export default function Layout({ isVendorView = false }) {
                 </div>
 
                 {/* Nav */}
-                <nav className="flex-1 p-4 space-y-1">
+                <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
                     {navItems.map((item) => (
                         <NavLink
                             key={item.path}
@@ -82,7 +82,7 @@ export default function Layout({ isVendorView = false }) {
                 </nav>
 
                 {/* User */}
-                <div className="p-4 border-t border-slate-700">
+                <div className="p-4 border-t border-slate-700 flex-shrink-0">
                     <div className="flex items-center gap-3 mb-3">
                         {user?.photoURL ? (
                             <img src={user.photoURL} alt="" className="w-10 h-10 rounded-full" />
@@ -111,7 +111,7 @@ export default function Layout({ isVendorView = false }) {
                 </div>
 
                 {/* Footer Branding */}
-                <div className="p-4 border-t border-slate-700 text-center">
+                <div className="p-4 border-t border-slate-700 text-center flex-shrink-0">
                     <p className="text-xs text-slate-500">
                         A product of{' '}
                         <a

@@ -4,22 +4,40 @@ import { dbHelpers, isDemoMode, demoData } from '../services/firebase';
 
 export default function Customers() {
     const [customers, setCustomers] = useState([]);
+    const [vendors, setVendors] = useState([]);
 
     useEffect(() => {
         if (isDemoMode()) {
             setCustomers(demoData.customers);
+            setVendors(demoData.vendors);
             return;
         }
-        return dbHelpers.getCustomers(setCustomers);
+        const unsubCustomers = dbHelpers.getCustomers(setCustomers);
+        const unsubVendors = dbHelpers.getVendors(setVendors);
+        return () => {
+            unsubCustomers?.();
+            unsubVendors?.();
+        };
     }, []);
 
+    const getVendorName = (vendorId) => {
+        const vendor = vendors.find(v => v.id === vendorId);
+        return vendor?.businessName || vendorId || '-';
+    };
+
     const columns = [
+        { key: 'name', label: 'Name', render: (v) => v || '-' },
         { key: 'phone', label: 'Phone Number' },
+        { key: 'defaultAddress', label: 'Address', render: (v) => v || '-' },
+        { key: 'vendorId', label: 'Vendor', render: (v) => getVendorName(v) },
         { key: 'orderCount', label: 'Orders', render: (v) => v || 0 },
         {
-            key: 'firstSeen',
+            key: 'createdAt',
             label: 'First Seen',
-            render: (v) => v ? new Date(v).toLocaleDateString() : '-'
+            render: (v, item) => {
+                const date = v || item.firstSeen;
+                return date ? new Date(date).toLocaleDateString() : '-';
+            }
         }
     ];
 
