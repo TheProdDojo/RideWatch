@@ -10,7 +10,7 @@ const SubscriptionModal = ({ isOpen, onClose, user, onSuccess }) => {
     const config = {
         reference: (new Date()).getTime().toString(),
         email: user?.email,
-        amount: 500000, // Amount is in kobo (5000 * 100)
+        amount: 1500000, // Amount is in kobo (15000 * 100)
         publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
         metadata: {
             custom_fields: [
@@ -90,7 +90,7 @@ const SubscriptionModal = ({ isOpen, onClose, user, onSuccess }) => {
                 </div>
 
                 <div className="mb-8 text-center relative z-10">
-                    <div className="text-3xl font-bold text-white">₦5,000</div>
+                    <div className="text-3xl font-bold text-white">₦15,000</div>
                     <div className="text-sm text-slate-500">per month</div>
                 </div>
 
