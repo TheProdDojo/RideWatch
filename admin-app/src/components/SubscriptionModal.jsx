@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { usePaystackPayment } from 'react-paystack';
 import { dbHelpers } from '../services/firebase';
+import { APP_CONSTANTS } from '../constants';
 
 const SubscriptionModal = ({ isOpen, onClose, user, onSuccess }) => {
     if (!isOpen) return null;
@@ -10,7 +11,7 @@ const SubscriptionModal = ({ isOpen, onClose, user, onSuccess }) => {
     const config = {
         reference: (new Date()).getTime().toString(),
         email: user?.email,
-        amount: 1500000, // Amount is in kobo (15000 * 100)
+        amount: APP_CONSTANTS.SUBSCRIPTION.PRO_PRICE_KOBO,
         publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
         metadata: {
             custom_fields: [
@@ -26,6 +27,7 @@ const SubscriptionModal = ({ isOpen, onClose, user, onSuccess }) => {
     const initializePayment = usePaystackPayment(config);
 
     const handleSuccess = async (reference) => {
+        console.log("Paystack Success:", reference);
         setLoading(true);
         try {
             // Update vendor profile directly
@@ -40,7 +42,7 @@ const SubscriptionModal = ({ isOpen, onClose, user, onSuccess }) => {
             onClose();
         } catch (error) {
             console.error("Upgrade failed:", error);
-            alert("Payment successful but profile update failed. Please contact support.");
+            alert("Payment successful but profile update failed. Please screenshot this and contact support: " + (error.message || error));
         } finally {
             setLoading(false);
         }
@@ -90,7 +92,7 @@ const SubscriptionModal = ({ isOpen, onClose, user, onSuccess }) => {
                 </div>
 
                 <div className="mb-8 text-center relative z-10">
-                    <div className="text-3xl font-bold text-white">₦15,000</div>
+                    <div className="text-3xl font-bold text-white">₦{APP_CONSTANTS.SUBSCRIPTION.PRO_PRICE_NAIRA.toLocaleString()}</div>
                     <div className="text-sm text-slate-500">per month</div>
                 </div>
 

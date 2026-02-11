@@ -271,8 +271,7 @@
     </main>
 
     <!-- Controls -->
-    <footer class="p-6 space-y-4 shrink-0" x-data="{ isCompleted: false }"
-        x-effect="isCompleted = statusText.includes('COMPLETE')">
+    <footer class="p-6 space-y-4 shrink-0">
         <!-- Completed State -->
         <div x-show="isCompleted"
             class="w-full h-20 rounded-2xl bg-slate-800 text-slate-400 border border-slate-700 flex items-center justify-center font-bold text-xl uppercase tracking-wider">
@@ -318,6 +317,7 @@
             Alpine.data('riderApp', () => ({
                 // State
                 isTracking: false,
+                isCompleted: false,
                 statusText: 'READY TO START',
                 startTime: null,
                 elapsedTime: '00:00',

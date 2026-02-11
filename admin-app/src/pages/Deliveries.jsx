@@ -3,7 +3,10 @@ import DataTable from '../components/DataTable';
 import SessionDetailsModal from '../components/SessionDetailsModal';
 import { dbHelpers, isDemoMode, demoData } from '../services/firebase';
 
+import { useAuth } from '../contexts/AuthContext';
+
 export default function Deliveries() {
+    const { user } = useAuth();
     const [sessions, setSessions] = useState([]);
     const [selectedSession, setSelectedSession] = useState(null);
     const [filter, setFilter] = useState('all');
@@ -14,8 +17,8 @@ export default function Deliveries() {
             setSessions(demoData.sessions);
             return;
         }
-        return dbHelpers.getSessions(setSessions);
-    }, []);
+        return dbHelpers.getSessions(setSessions, user?.uid);
+    }, [user]);
 
     // Filter by status
     let filteredSessions = filter === 'all'

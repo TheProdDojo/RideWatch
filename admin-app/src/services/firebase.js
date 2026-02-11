@@ -236,6 +236,16 @@ export const dbHelpers = {
         await update(vendorRef, { ...updates, updatedAt: Date.now() });
     },
 
+    listenToVendorProfile: (uid, callback) => {
+        const vendorRef = ref(db, `vendors/${uid}`);
+        return onValue(vendorRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                callback(data);
+            }
+        });
+    },
+
     getVendorProfile: async (uid) => {
         const vendorRef = ref(db, `vendors/${uid}`);
         const snapshot = await get(vendorRef);
@@ -297,8 +307,15 @@ export const dbHelpers = {
     },
 
     // Sessions/Deliveries
-    getSessions: (callback) => {
-        const sessionsRef = ref(db, 'sessions');
+    getSessions: (callback, vendorId = null) => {
+        let sessionsRef;
+        if (vendorId) {
+            sessionsRef = query(ref(db, 'sessions'), orderByChild('vendorId'), equalTo(vendorId));
+        } else {
+            // Only superadmins or admins should hit this
+            sessionsRef = ref(db, 'sessions');
+        }
+
         return onValue(sessionsRef, (snapshot) => {
             const data = snapshot.val() || {};
             const sessions = Object.entries(data).map(([id, session]) => ({ id, ...session }));

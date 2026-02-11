@@ -35,8 +35,8 @@ export const useVendorUsage = (sessions, isPro = false) => {
             monthlyLimitReached,
             canCreate,
             limits: {
-                maxActive: MAX_ACTIVE,
-                maxMonthly: MAX_MONTHLY
+                maxActive: isPro ? Infinity : MAX_ACTIVE,
+                maxMonthly: isPro ? Infinity : MAX_MONTHLY
             }
         };
     }, [sessions, isPro]);

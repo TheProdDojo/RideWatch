@@ -41,10 +41,9 @@ export const AuthProvider = ({ children }) => {
                 const userRole = await dbHelpers.getUserRole(firebaseUser.uid, firebaseUser.email);
                 setRole(userRole);
 
-                // If vendor, get their profile
-                if (userRole === 'vendor') {
-                    const profile = await dbHelpers.getVendorProfile(firebaseUser.uid);
-                    setVendorProfile(profile);
+                // If vendor OR admin, ensure state is ready for the effect to pick up
+                if (userRole === 'vendor' || userRole === 'admin' || userRole === 'superadmin') {
+                    // Effect will handle the listener
                 }
 
                 setUser({
@@ -64,6 +63,21 @@ export const AuthProvider = ({ children }) => {
 
         return unsubscribe;
     }, []);
+
+    // Separate effect for vendor profile listening to handle cleanup properly
+    useEffect(() => {
+        let unsubscribeProfile = null;
+
+        if (user && (role === 'vendor' || role === 'admin' || role === 'superadmin') && !isDemoMode()) {
+            unsubscribeProfile = dbHelpers.listenToVendorProfile(user.uid, (profile) => {
+                setVendorProfile(profile);
+            });
+        }
+
+        return () => {
+            if (unsubscribeProfile) unsubscribeProfile();
+        };
+    }, [user, role]);
 
     const signInWithGoogle = async () => {
         if (isDemoMode()) {

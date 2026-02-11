@@ -1,13 +1,13 @@
 {
     "rules": {
         "sessions": {
-            ".read": true,
+            ".read": "(auth != null && query.orderByChild == 'vendorId' && query.equalTo == auth.uid) || (auth != null && root.child('admins').child(auth.uid).exists()) || (auth != null && auth.token.email == 'info@deproductdojo.com')",
             ".indexOn": [
                 "vendorId",
                 "status"
             ],
             "$sessionId": {
-                ".read": true,
+                ".read": "true",
                 ".write": "auth != null || !data.exists() || data.child('vendorId').val() === 'guest'",
                 ".validate": "newData.hasChildren(['refId', 'stopCode'])"
             }

@@ -1,156 +1,24 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
-import { QRCodeCanvas } from 'qrcode.react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { db, dbHelpers, isDemoMode } from '../services/firebase';
-import { ref, push, set, onValue, off, update } from 'firebase/database';
-import AddressAutocomplete from '../components/AddressAutocomplete';
-import SearchableSelect from '../components/SearchableSelect';
+import { ref, onValue, off, update } from 'firebase/database';
 import SessionDetailsModal from '../components/SessionDetailsModal';
 import VendorSettingsModal from '../components/VendorSettingsModal';
 import SubscriptionModal from '../components/SubscriptionModal';
 import { useVendorUsage } from '../hooks/useVendorUsage';
 import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
+import DashboardMap from '../components/DashboardMap';
+import CreateDeliveryForm from '../components/CreateDeliveryForm';
+import { getGuestSessions, clearGuestSessions } from '../utils/guestStorage';
 
-// Fix Leaflet marker icon issue
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-    iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
-    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
-    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-});
-
-// Custom marker icons
-const createRiderIcon = (status) => {
-    const color = status === 'active' ? '#22c55e' : status === 'lost' ? '#ef4444' : '#f59e0b';
-    return L.divIcon({
-        className: 'custom-marker',
-        html: `<div style="background: ${color}; width: 32px; height: 32px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; font-size: 16px;">🛵</div>`,
-        iconSize: [32, 32],
-        iconAnchor: [16, 16],
-    });
-};
-
-const createPickupIcon = () => L.divIcon({
-    className: 'custom-marker',
-    html: `<div style="background: #f97316; width: 24px; height: 24px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; font-size: 12px;">📦</div>`,
-    iconSize: [24, 24],
-    iconAnchor: [12, 12],
-});
-
-const createDropoffIcon = () => L.divIcon({
-    className: 'custom-marker',
-    html: `<div style="background: #ef4444; width: 24px; height: 24px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; font-size: 12px;">📍</div>`,
-    iconSize: [24, 24],
-    iconAnchor: [12, 12],
-});
+// Component to handle map bounds and focus - MOVED TO DashboardMap.jsx
+// Custom marker icons - MOVED TO DashboardMap.jsx
 
 // Component to handle map bounds and focus
-function MapLogic({ sessions, focusedSession }) {
-    const map = useMap();
 
-    useEffect(() => {
-        if (!map) return;
 
-        // 1. If a specific session is focused, ZOOM to the RIDER (or pickup)
-        if (focusedSession && (focusedSession.lat || focusedSession.pickup?.lat)) {
-            if (focusedSession.lat && focusedSession.lng) {
-                map.flyTo([focusedSession.lat, focusedSession.lng], 16, { duration: 1.5 });
-            } else if (focusedSession.pickup?.lat && focusedSession.pickup?.lng) {
-                map.flyTo([focusedSession.pickup.lat, focusedSession.pickup.lng], 16, { duration: 1.5 });
-            }
-            return;
-        }
-
-        // 2. Otherwise, fit bounds to show ALL active sessions
-        try {
-            const bounds = L.latLngBounds();
-            let hasPoints = false;
-
-            sessions.forEach(session => {
-                if (!session) return;
-                if (session.lat && session.lng) { bounds.extend([session.lat, session.lng]); hasPoints = true; }
-                if (session.pickup?.lat && session.pickup?.lng) { bounds.extend([session.pickup.lat, session.pickup.lng]); hasPoints = true; }
-                if (session.dropoff?.lat && session.dropoff?.lng) { bounds.extend([session.dropoff.lat, session.dropoff.lng]); hasPoints = true; }
-            });
-
-            if (hasPoints && bounds.isValid()) {
-                map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
-            }
-        } catch (error) {
-            console.error('Error in MapLogic bounds calculation:', error);
-        }
-    }, [sessions, focusedSession, map]);
-
-    return (
-        <>
-            {sessions.map(session => (
-                <React.Fragment key={session.id}>
-                    {/* Rider Marker */}
-                    {session.lat && session.lng && (
-                        <Marker position={[session.lat, session.lng]} icon={createRiderIcon(session.status)}>
-                            <Popup>
-                                <div className="text-slate-800">
-                                    <strong>{session.riderName}</strong><br />
-                                    🛵 Rider<br />
-                                    Status: {session.status}
-                                </div>
-                            </Popup>
-                        </Marker>
-                    )}
-                    {/* Pickup Marker */}
-                    {session.pickup?.lat && session.pickup?.lng && (
-                        <Marker position={[session.pickup.lat, session.pickup.lng]} icon={createPickupIcon()}>
-                            <Popup>
-                                <div className="text-slate-800">
-                                    <strong>{session.riderName}</strong><br />
-                                    📦 Pickup<br />
-                                    {session.pickup.address}
-                                </div>
-                            </Popup>
-                        </Marker>
-                    )}
-                    {/* Dropoff Marker */}
-                    {session.dropoff?.lat && session.dropoff?.lng && (
-                        <Marker position={[session.dropoff.lat, session.dropoff.lng]} icon={createDropoffIcon()}>
-                            <Popup>
-                                <div className="text-slate-800">
-                                    <strong>{session.riderName}</strong><br />
-                                    📍 Dropoff<br />
-                                    {session.dropoff.address}
-                                </div>
-                            </Popup>
-                        </Marker>
-                    )}
-                </React.Fragment>
-            ))}
-        </>
-    );
-}
-
-// LocalStorage helpers for guest mode
-const GUEST_SESSIONS_KEY = 'ridetrack_guest_sessions';
-
-function getGuestSessions() {
-    try {
-        const data = localStorage.getItem(GUEST_SESSIONS_KEY);
-        return data ? JSON.parse(data) : [];
-    } catch {
-        return [];
-    }
-}
-
-function saveGuestSession(session) {
-    const sessions = getGuestSessions();
-    sessions.unshift(session);
-    localStorage.setItem(GUEST_SESSIONS_KEY, JSON.stringify(sessions.slice(0, 50))); // Keep last 50
-}
-
-function clearGuestSessions() {
-    localStorage.removeItem(GUEST_SESSIONS_KEY);
-}
+// LocalStorage helpers for guest mode - MOVED TO utils/guestStorage.js
 
 const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message }) => {
     if (!isOpen) return null;
@@ -214,7 +82,7 @@ export default function VendorDashboard() {
     const { user, vendorProfile, signOut } = useAuth();
     const navigate = useNavigate();
     const [sessions, setSessions] = useState([]);
-    const [generatedLinks, setGeneratedLinks] = useState(null);
+    // generatedLinks removed (handled in CreateDeliveryForm)
     const [modalOpen, setModalOpen] = useState(false); // For Session Details
     const [selectedSession, setSelectedSession] = useState(null);
     const [focusedSession, setFocusedSession] = useState(null); // For map focus
@@ -276,112 +144,14 @@ export default function VendorDashboard() {
 
     const isGuest = !user;
 
-    // Form state
-    const [formData, setFormData] = useState({
-        refId: '',
-        riderName: '',
-        riderPhone: '',
-        customerName: '',
-        customerPhone: '',
-        pickupAddress: '',
-        dropoffAddress: ''
-    });
-
-    // Resolved locations (coords + address)
-    const [pickupLocation, setPickupLocation] = useState(null);
-    const [dropoffLocation, setDropoffLocation] = useState(null);
-
-    // Geocoding state for "Use My Location" buttons
-    const [geocodingPickup, setGeocodingPickup] = useState(false);
-    const [geocodingDropoff, setGeocodingDropoff] = useState(false);
-    const [customerFormAddress, setCustomerFormAddress] = useState('');
-    const [geocodingCustomerAddress, setGeocodingCustomerAddress] = useState(false);
-
-    // Geocode address using OpenStreetMap Nominatim
-    const geocodeAddress = async (address) => {
-        if (!address || address.trim().length < 3) return null;
-        try {
-            const response = await fetch(
-                `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`,
-                { headers: { 'User-Agent': 'RideWatch/1.0' } }
-            );
-            const data = await response.json();
-            if (data && data.length > 0) {
-                return {
-                    lat: parseFloat(data[0].lat),
-                    lng: parseFloat(data[0].lon),
-                    address: address
-                };
-            }
-        } catch (error) {
-            console.error('Geocoding error:', error);
-        }
-        return null;
-    };
-
-    // Use current location for pickup/dropoff
-    const useCurrentLocation = async (field) => {
-        if (!navigator.geolocation) {
-            alert('Geolocation not supported');
-            return;
-        }
-        let setLoading;
-        if (field === 'pickup') setLoading = setGeocodingPickup;
-        else if (field === 'dropoff') setLoading = setGeocodingDropoff;
-        else setLoading = setGeocodingCustomerAddress;
-
-        setLoading(true);
-        navigator.geolocation.getCurrentPosition(
-            async (position) => {
-                const { latitude, longitude } = position.coords;
-                // Reverse geocode to get address
-                try {
-                    const response = await fetch(
-                        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
-                        { headers: { 'User-Agent': 'RideWatch/1.0' } }
-                    );
-                    const data = await response.json();
-                    const address = data.display_name || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
-
-                    const locationData = { lat: latitude, lng: longitude, address };
-
-                    if (field === 'pickup') {
-                        setFormData(prev => ({ ...prev, pickupAddress: address }));
-                        setPickupLocation(locationData);
-                    } else if (field === 'dropoff') {
-                        setFormData(prev => ({ ...prev, dropoffAddress: address }));
-                        setDropoffLocation(locationData);
-                    } else if (field === 'customer') {
-                        setCustomerFormAddress(address);
-                    }
-                } catch (e) {
-                    const fallbackAddress = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
-                    const locationData = { lat: latitude, lng: longitude, address: fallbackAddress };
-
-                    if (field === 'pickup') {
-                        setFormData(prev => ({ ...prev, pickupAddress: fallbackAddress }));
-                        setPickupLocation(locationData);
-                    } else if (field === 'dropoff') {
-                        setFormData(prev => ({ ...prev, dropoffAddress: fallbackAddress }));
-                        setDropoffLocation(locationData);
-                    } else if (field === 'customer') {
-                        setCustomerFormAddress(fallbackAddress);
-                    }
-                }
-                setLoading(false);
-            },
-            (error) => {
-                alert('Could not get location: ' + error.message);
-                setLoading(false);
-            }
-        );
-    };
-
     // Demo data
     const demoSessions = [
         { id: 'demo_001', refId: 'ORD-5521', riderName: 'Emeka', stopCode: '4829', status: 'active', lastPing: '5s ago', battery: 72, lat: 6.5244, lng: 3.3792 },
         { id: 'demo_002', refId: 'ORD-5520', riderName: 'Chidi', stopCode: '7153', status: 'active', lastPing: '12s ago', battery: 45, lat: 6.5355, lng: 3.3481 }
     ];
+
+    // Guest session refresh trigger
+    const [guestRefresh, setGuestRefresh] = useState(0);
 
     useEffect(() => {
         if (isDemoMode()) {
@@ -390,37 +160,39 @@ export default function VendorDashboard() {
         }
 
         // Authenticated mode OR Guest mode: load from Firebase
-        const sessionsRef = ref(db, 'sessions');
-        const unsubscribe = onValue(sessionsRef, (snapshot) => {
-            if (snapshot.exists()) {
-                const data = snapshot.val();
-                let vendorSessions = [];
-
-                if (isGuest) {
-                    // In guest mode, filter sessions that match ids in local storage
-                    const localSessions = getGuestSessions();
-                    const localIds = localSessions.map(s => s.id);
-
-                    vendorSessions = Object.entries(data)
-                        .filter(([id, _]) => localIds.includes(id))
-                        .map(([id, session]) => ({ id, ...session }));
-                } else {
-                    // In auth mode, filter by vendorId
-                    vendorSessions = Object.entries(data)
-                        .filter(([_, session]) => session.vendorId === user?.uid)
-                        .map(([id, session]) => ({ id, ...session }));
-                }
-
-                vendorSessions = vendorSessions
-                    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-
-                setSessions(vendorSessions);
+        if (!isGuest) {
+            // Logged in vendor: use secure query
+            const unsubscribe = dbHelpers.getSessions(setSessions, user.uid);
+            return () => unsubscribe();
+        } else {
+            // Guest mode: load specific sessions from local storage IDs
+            const localSessions = getGuestSessions();
+            if (localSessions.length === 0) {
+                setSessions([]);
+                return;
             }
-        });
 
-        return () => off(sessionsRef);
-        return () => off(sessionsRef);
-    }, [user, isGuest]);
+            // For now, guest mode still needs to read specific paths or we need a guest-specific query
+            // Since we locked down read access, guests can't read 'sessions' root.
+            // They need to subscribe to each session ID individually.
+
+            const listeners = [];
+            const newSessions = {};
+
+            localSessions.forEach(ls => {
+                const sessionRef = ref(db, `sessions/${ls.id}`);
+                const unsub = onValue(sessionRef, (snapshot) => {
+                    if (snapshot.exists()) {
+                        newSessions[ls.id] = { id: ls.id, ...snapshot.val() };
+                        setSessions(Object.values(newSessions).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)));
+                    }
+                });
+                listeners.push(() => off(sessionRef));
+            });
+
+            return () => listeners.forEach(unsub => unsub());
+        }
+    }, [user, isGuest, guestRefresh]);
 
     // CRM Data Loading
     const [myRiders, setMyRiders] = useState([]);
@@ -444,117 +216,7 @@ export default function VendorDashboard() {
         return () => window.removeEventListener('open-subscription-modal', handleOpenSub);
     }, []);
 
-    const generateLink = async (e) => {
-        e.preventDefault();
 
-        // Check Limits
-        if (!usage.canCreate) {
-            setLimitModalOpen(true);
-            return;
-        }
-
-        setLoading(true);
-
-        const sessionId = 'sess_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
-        const stopCode = Math.floor(1000 + Math.random() * 9000).toString();
-        const riderPin = Math.floor(1000 + Math.random() * 9000).toString();
-
-        // Resolve pickup location: use state coords or fallback to geocoding input string
-        let finalPickup = pickupLocation;
-        // Priority: 1. Map/Manual selection 2. Default Pickup (if empty form) 3. Geocode Form Input
-        if (!finalPickup && !formData.pickupAddress && vendorProfile?.defaultPickup) {
-            finalPickup = vendorProfile.defaultPickup;
-        } else if (!finalPickup && formData.pickupAddress) {
-            finalPickup = await geocodeAddress(formData.pickupAddress);
-        }
-
-        // Resolve dropoff location
-        let finalDropoff = dropoffLocation;
-        if (!finalDropoff && formData.dropoffAddress) {
-            finalDropoff = await geocodeAddress(formData.dropoffAddress);
-        }
-
-        // Determine base URL (use port 8000 for static files if local)
-        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        const staticBaseUrl = isLocal ? `${window.location.protocol}//${window.location.hostname}:8000` : window.location.origin;
-
-        const newSession = {
-            id: sessionId,
-            refId: formData.refId,
-            riderName: formData.riderName,
-            riderPhone: formData.riderPhone,
-            customerName: formData.customerName,
-            customerPhone: formData.customerPhone,
-            stopCode,
-            riderPin, // NEW: Rider security
-            status: 'pending',
-            vendorId: user?.uid || 'guest',
-            vendorEmail: user?.email || null,
-            createdAt: Date.now(),
-            lat: null,
-            lng: null,
-            lastPing: 'Waiting...',
-            // NEW: Pickup and Dropoff locations
-            pickup: finalPickup,
-            dropoff: finalDropoff
-        };
-
-        // Save to LocalStorage (for guest list persistence)
-        if (isGuest) {
-            saveGuestSession(newSession);
-        }
-
-        // Save to Firebase (for Rider/Customer access)
-        if (db) {
-            try {
-                await set(ref(db, `sessions/${sessionId}`), newSession);
-            } catch (error) {
-                console.error('Failed to save session to Firebase:', error);
-                // If firebase fails for guest, we still have local storage
-                if (!isGuest && !isDemoMode()) alert('Failed to create session. Please try again.');
-            }
-        }
-
-        // Add to local state - REMOVED to avoid duplication with onValue listener
-        // setSessions(prev => [newSession, ...prev]);
-
-        // Generate links
-        setGeneratedLinks({
-            sessionId,
-            stopCode,
-            riderPin,
-            riderLink: `${staticBaseUrl}/rider.html?session=${sessionId}`,
-            riderLink: `${staticBaseUrl}/rider.html?session=${sessionId}`,
-            customerLink: `${staticBaseUrl}/track.html?session=${sessionId}`
-        });
-
-        // Reset form
-        setFormData({ refId: '', riderName: '', riderPhone: '', customerName: '', customerPhone: '', pickupAddress: '', dropoffAddress: '' });
-        setPickupLocation(null);
-        setDropoffLocation(null);
-        setLoading(false);
-    };
-
-    const copyToClipboard = async (text, e) => {
-        await navigator.clipboard.writeText(text);
-        showToast('Link copied to clipboard! 📋');
-        if (e?.target) {
-            const original = e.target.innerText;
-            e.target.innerText = '✓ Copied!';
-            setTimeout(() => { e.target.innerText = original; }, 1500);
-        }
-    };
-
-    const sendToWhatsApp = (type) => {
-        if (!generatedLinks) return;
-        let message;
-        if (type === 'rider') {
-            message = `🛵 RideWatch: Start tracking for order. Open: ${generatedLinks.riderLink}`;
-        } else {
-            message = `📍 Track your order: ${generatedLinks.customerLink}\n\n🔐 Stop Code: ${generatedLinks.stopCode}\nGive this code to the rider when they arrive.`;
-        }
-        window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
-    };
 
     const focusOnMap = (session) => {
         setFocusedSession({ ...session, _ts: Date.now() });
@@ -852,256 +514,39 @@ export default function VendorDashboard() {
                         📜 History
                     </button>
                 </div>
-
                 {/* Link Generator */}
+                {/* Link Generator & Live Map */}
                 {activeTab === 'active' && (
-                    <>
-                        <div className="bg-slate-800 rounded-xl border border-slate-700">
-                            <div className="px-6 py-4 border-b border-slate-700 bg-slate-800/50 rounded-t-xl">
-                                <h2 className="font-semibold flex items-center gap-2">
-                                    <span>🔗</span> Generate Tracking Link
-                                </h2>
-                            </div>
-                            <div className="p-6">
-                                <form onSubmit={generateLink} className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <div>
-                                        <label className="block text-sm text-slate-400 mb-2">Reference / Order ID *</label>
-                                        <input
-                                            type="text"
-                                            value={formData.refId}
-                                            onChange={(e) => setFormData({ ...formData, refId: e.target.value })}
-                                            required
-                                            className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-green-500"
-                                            placeholder="e.g. ORD-1234"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm text-slate-400 mb-2">Rider Name *</label>
-                                        <SearchableSelect
-                                            placeholder="Select or type rider name..."
-                                            value={formData.riderName}
-                                            options={myRiders.map(r => ({ ...r, label: r.name, subLabel: r.phone }))}
-                                            onChange={(val) => setFormData({ ...formData, riderName: val })}
-                                            onSelect={(rider) => {
-                                                setFormData({
-                                                    ...formData,
-                                                    riderName: rider.name,
-                                                    riderPhone: rider.phone
-                                                });
-                                            }}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm text-slate-400 mb-2">Rider WhatsApp (Optional)</label>
-                                        <input
-                                            type="tel"
-                                            value={formData.riderPhone}
-                                            onChange={(e) => setFormData({ ...formData, riderPhone: e.target.value })}
-                                            className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-green-500"
-                                            placeholder="e.g. 08012345678"
-                                        />
-                                    </div>
+                    <div className="space-y-6 animate-fade-in">
+                        <CreateDeliveryForm
+                            user={user}
+                            vendorProfile={vendorProfile}
+                            usage={usage}
+                            riders={myRiders}
+                            customers={myCustomers}
+                            onLimitReached={() => setLimitModalOpen(true)}
+                            onToast={showToast}
+                            onSessionCreated={() => setGuestRefresh(prev => prev + 1)}
+                        />
 
-                                    {/* Customer Info (NEW) */}
-                                    <div>
-                                        <label className="block text-sm text-slate-400 mb-2">Customer Name</label>
-                                        <SearchableSelect
-                                            placeholder="Select or type customer name..."
-                                            value={formData.customerName}
-                                            options={myCustomers.map(c => ({ ...c, label: c.name, subLabel: c.phone }))}
-                                            onChange={(val) => setFormData({ ...formData, customerName: val })}
-                                            onSelect={(cust) => {
-                                                setFormData({
-                                                    ...formData,
-                                                    customerName: cust.name,
-                                                    customerPhone: cust.phone,
-                                                    dropoffAddress: cust.defaultAddress || ''
-                                                });
-                                                setDropoffLocation(null);
-                                            }}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm text-slate-400 mb-2">Customer Phone</label>
-                                        <input
-                                            type="tel"
-                                            value={formData.customerPhone}
-                                            onChange={(e) => setFormData({ ...formData, customerPhone: e.target.value })}
-                                            className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-green-500"
-                                            placeholder="e.g. 08087654321"
-                                        />
-                                    </div>
-
-                                    {/* Pickup Location */}
-                                    <div className="md:col-span-3 border-t border-slate-700 pt-4 mt-2">
-                                        <AddressAutocomplete
-                                            label="📦 Pickup Address"
-                                            value={formData.pickupAddress}
-                                            onChange={(data) => {
-                                                setFormData(prev => ({ ...prev, pickupAddress: data.address }));
-                                                if (data.lat && data.lng) {
-                                                    setPickupLocation(data);
-                                                } else {
-                                                    setPickupLocation(null);
-                                                }
-                                            }}
-                                            onUseMyLocation={() => useCurrentLocation('pickup')}
-                                            isLoadingLocation={geocodingPickup}
-                                            placeholder="e.g. 15 Admiralty Way, Lekki Phase 1, Lagos"
-                                        />
-                                    </div>
-
-                                    {/* Dropoff Location */}
-                                    <div className="md:col-span-3">
-                                        <AddressAutocomplete
-                                            label="📍 Customer/Dropoff Address"
-                                            value={formData.dropoffAddress}
-                                            onChange={(data) => {
-                                                setFormData(prev => ({ ...prev, dropoffAddress: data.address }));
-                                                if (data.lat && data.lng) {
-                                                    setDropoffLocation(data);
-                                                } else {
-                                                    setDropoffLocation(null);
-                                                }
-                                            }}
-                                            onUseMyLocation={() => useCurrentLocation('dropoff')}
-                                            isLoadingLocation={geocodingDropoff}
-                                            placeholder="e.g. 42 Marina Street, Victoria Island, Lagos"
-                                        />
-                                    </div>
-
-                                    <div className="md:col-span-3">
-                                        <button
-                                            type="submit"
-                                            disabled={loading}
-                                            className="px-8 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition disabled:opacity-50"
-                                        >
-                                            {loading ? 'Generating...' : 'Generate Links'}
-                                        </button>
-                                    </div>
-                                </form>
-                            </div>
-
-                            {/* Generated Links Panel */}
-                            {generatedLinks && (
-                                <div className="p-6 bg-green-900/20 border-t border-green-700/30 space-y-4">
-                                    {/* Stop Code */}
-                                    <div className="bg-slate-800 border-2 border-dashed border-green-500/50 rounded-lg p-6 text-center">
-                                        <div className="text-sm text-slate-400 mb-1">🔐 Stop Code (Give to Customer)</div>
-                                        <div className="text-5xl font-mono font-bold text-green-400 tracking-[0.3em]">
-                                            {generatedLinks.stopCode}
-                                        </div>
-                                        <div className="text-xs text-slate-500 mt-2">Rider needs this code to complete delivery</div>
-                                    </div>
-
-                                    {/* Rider PIN */}
-                                    <div className="bg-slate-900 border border-slate-700 rounded-lg p-3 text-center">
-                                        <div className="text-xs text-slate-400 uppercase tracking-widest mb-1">🔑 Rider PIN</div>
-                                        <div className="text-2xl font-mono font-bold text-green-400 tracking-wider">
-                                            {generatedLinks.riderPin}
-                                        </div>
-                                        <div className="text-xs text-slate-500 mt-2">Give this to rider to unlock app</div>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {/* Rider Link */}
-                                        <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
-                                            <div className="text-sm font-medium text-slate-400 mb-2">📍 Rider Tracking Link</div>
-                                            <div className="flex items-center gap-2">
-                                                <input
-                                                    type="text"
-                                                    readOnly
-                                                    value={generatedLinks.riderLink}
-                                                    className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded text-sm font-mono text-slate-300"
-                                                />
-                                                <button
-                                                    onClick={(e) => copyToClipboard(generatedLinks.riderLink, e)}
-                                                    className="px-3 py-2 bg-slate-600 hover:bg-slate-500 rounded text-sm transition"
-                                                >
-                                                    Copy
-                                                </button>
-                                            </div>
-                                            <button
-                                                onClick={() => sendToWhatsApp('rider')}
-                                                className="mt-3 w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition flex items-center justify-center gap-2"
-                                            >
-                                                <span>📱</span> Send to Rider via WhatsApp
-                                            </button>
-                                        </div>
-
-                                        {/* Customer Link */}
-                                        <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
-                                            <div className="text-sm font-medium text-slate-400 mb-2">👀 Customer View Link</div>
-                                            <div className="flex items-center gap-2">
-                                                <input
-                                                    type="text"
-                                                    readOnly
-                                                    value={generatedLinks.customerLink}
-                                                    className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded text-sm font-mono text-slate-300"
-                                                />
-                                                <button
-                                                    onClick={(e) => copyToClipboard(generatedLinks.customerLink, e)}
-                                                    className="px-3 py-2 bg-slate-600 hover:bg-slate-500 rounded text-sm transition"
-                                                >
-                                                    Copy
-                                                </button>
-                                            </div>
-                                            <button
-                                                onClick={() => sendToWhatsApp('customer')}
-                                                className="mt-3 w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition flex items-center justify-center gap-2"
-                                            >
-                                                <span>📱</span> Send to Customer via WhatsApp
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {/* QR Code */}
-                                    <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 flex flex-col items-center">
-                                        <div className="text-sm font-medium text-slate-400 mb-3">📲 Customer QR Code</div>
-                                        <div className="bg-white p-3 rounded-lg">
-                                            <QRCodeCanvas
-                                                value={generatedLinks.customerLink}
-                                                size={150}
-                                                fgColor="#16a34a"
-                                                level="M"
-                                            />
-                                        </div>
-                                        <div className="text-xs text-slate-500 mt-2">Scan to open tracking page</div>
-                                    </div>
-                                </div>
-                            )}
+                        {/* Map Header */}
+                        <div className="flex justify-between items-end px-1">
+                            <h2 className="text-xl font-bold flex items-center gap-2">
+                                <span>🗺️</span> Live Dispatch Map
+                            </h2>
+                            <button
+                                onClick={() => setFocusedSession({ _reset: Date.now() })}
+                                className="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded-full text-slate-300 transition border border-slate-600"
+                            >
+                                🔍 Fit All
+                            </button>
                         </div>
 
-                        {/* Live Map */}
-                        <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-                            <div className="px-6 py-4 border-b border-slate-700 bg-slate-800/50 flex justify-between items-center">
-                                <h2 className="font-semibold flex items-center gap-2">
-                                    <span>🗺️</span> Live Map
-                                    <button
-                                        onClick={() => setFocusedSession({ _reset: Date.now() })}
-                                        className="ml-4 text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded-full text-slate-300 transition border border-slate-600"
-                                    >
-                                        🔍 Fit All
-                                    </button>
-                                </h2>
-                                <span className="text-xs text-slate-500">OpenStreetMap</span>
-                            </div>
-                            <div className="h-[400px]">
-                                <MapContainer
-                                    center={[6.5244, 3.3792]}
-                                    zoom={13}
-                                    style={{ height: '100%', width: '100%' }}
-                                    className="z-0"
-                                >
-                                    <TileLayer
-                                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                                    />
-                                    <MapLogic sessions={activeSessions} focusedSession={focusedSession} />
-                                </MapContainer>
-                            </div>
-                        </div>
-                    </>
+                        <DashboardMap
+                            sessions={activeSessions}
+                            focusedSession={focusedSession}
+                        />
+                    </div>
                 )}
 
                 {/* RIDERS TAB */}
