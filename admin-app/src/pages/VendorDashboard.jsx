@@ -238,9 +238,23 @@ export default function VendorDashboard() {
 
     const activeSessions = sessions.filter(s => s.status !== 'completed' && ((s.lat && s.lng) || s.pickup || s.dropoff));
 
+    // Filter states
+    const [riderFilter, setRiderFilter] = useState(null); // riderId or null
+
     // Split sessions for Table
     const activeTableSessions = sessions.filter(s => s.status !== 'completed' && s.status !== 'cancelled');
-    const historyTableSessions = sessions.filter(s => s.status === 'completed' || s.status === 'cancelled');
+    const historyTableSessions = sessions.filter(s => {
+        const isHistory = s.status === 'completed' || s.status === 'cancelled';
+        if (!isHistory) return false;
+        if (riderFilter) {
+            // Strict ID match or fallback name match
+            if (s.riderId) return s.riderId === riderFilter;
+            // Find rider name from ID for fallback
+            const rider = myRiders.find(r => r.id === riderFilter);
+            return rider && s.riderName === rider.name;
+        }
+        return true;
+    });
 
     // CSV/Excel Export
     const exportHistory = () => {
@@ -562,20 +576,58 @@ export default function VendorDashboard() {
                                     <tr className="text-slate-400 border-b border-slate-700">
                                         <th className="p-3">Name</th>
                                         <th className="p-3">Phone</th>
+                                        <th className="p-3">Rating</th>
                                         <th className="p-3">Status</th>
                                         <th className="p-3">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {myRiders.map(rider => (
-                                        <tr key={rider.id} className="border-b border-slate-700/50 hover:bg-slate-700/30">
-                                            <td className="p-3">{rider.name}</td>
-                                            <td className="p-3">{rider.phone}</td>
-                                            <td className="p-3">{rider.status}</td>
-                                            <td className="p-3"><button onClick={() => setRiderModal({ isOpen: true, data: rider })} className="text-blue-400 hover:underline">Edit</button></td>
-                                        </tr>
-                                    ))}
-                                    {myRiders.length === 0 && <tr><td colSpan="4" className="p-6 text-center text-slate-500">No riders yet.</td></tr>}
+                                    {myRiders.map(rider => {
+                                        // Calculate stats on the fly
+                                        const riderSessions = sessions.filter(s => {
+                                            const hasRating = s.rating;
+                                            if (!hasRating) return false;
+                                            // Strict match on ID if available, otherwise fallback to name
+                                            if (s.riderId) return s.riderId === rider.id;
+                                            return s.riderName === rider.name;
+                                        });
+                                        const totalRating = riderSessions.reduce((sum, s) => sum + parseInt(s.rating || 0), 0);
+                                        const avgRating = riderSessions.length > 0 ? (totalRating / riderSessions.length).toFixed(1) : null;
+
+                                        return (
+                                            <tr key={rider.id} className="border-b border-slate-700/50 hover:bg-slate-700/30">
+                                                <td className="p-3">{rider.name}</td>
+                                                <td className="p-3">{rider.phone}</td>
+                                                <td className="p-3">
+                                                    {avgRating ? (
+                                                        <div className="flex items-center gap-1">
+                                                            <span className="text-yellow-400">★</span>
+                                                            <span className="font-bold text-white">{avgRating}</span>
+                                                            <span className="text-xs text-slate-500">({riderSessions.length})</span>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-slate-500 text-xs">No ratings</span>
+                                                    )}
+                                                </td>
+                                                <td className="p-3">{rider.status}</td>
+                                                <td className="p-3">
+                                                    <div className="flex items-center gap-3">
+                                                        <button
+                                                            onClick={() => {
+                                                                setRiderFilter(rider.id);
+                                                                setActiveTab('history');
+                                                            }}
+                                                            className="text-green-400 hover:text-green-300 text-xs font-bold uppercase tracking-wider"
+                                                        >
+                                                            View History
+                                                        </button>
+                                                        <button onClick={() => setRiderModal({ isOpen: true, data: rider })} className="text-blue-400 hover:underline">Edit</button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )
+                                    })}
+                                    {myRiders.length === 0 && <tr><td colSpan="5" className="p-6 text-center text-slate-500">No riders yet.</td></tr>}
                                 </tbody>
                             </table>
                         </div>
@@ -678,13 +730,23 @@ export default function VendorDashboard() {
                                 </button>
                             </div>
 
+
+
                             {activeTab === 'history' && (
-                                <button
-                                    onClick={exportHistory}
-                                    className="text-xs bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded transition flex items-center gap-1"
-                                >
-                                    ⬇ Export CSV
-                                </button>
+                                <div className="flex items-center gap-3">
+                                    {riderFilter && (
+                                        <div className="flex items-center gap-2 bg-green-500/20 text-green-400 px-3 py-1 rounded-full text-xs font-bold border border-green-500/30">
+                                            <span>Starting filter: {myRiders.find(r => r.id === riderFilter)?.name || 'Rider'}</span>
+                                            <button onClick={() => setRiderFilter(null)} className="hover:text-white">✕</button>
+                                        </div>
+                                    )}
+                                    <button
+                                        onClick={exportHistory}
+                                        className="text-xs bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded transition flex items-center gap-1"
+                                    >
+                                        ⬇ Export CSV
+                                    </button>
+                                </div>
                             )}
                         </div>
                         <div className="overflow-x-auto">

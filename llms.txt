@@ -17,6 +17,6 @@ RideWatch is a lightweight, offline-first logistics tracking platform built for 
 - **Hosting**: Vercel / Firebase Hosting.
 
 ## Key Links
-- **Homepage**: https://ridewatch.io/
-- **Vendor Portal**: https://ridewatch.io/vendor/
-- **Privacy Policy**: https://ridewatch.io/privacy.html
+- **Homepage**: https://ridewatchapp.com/
+- **Vendor Portal**: https://ridewatchapp.com/vendor/
+- **Privacy Policy**: https://ridewatchapp.com/privacy.html

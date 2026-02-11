@@ -22,6 +22,7 @@ export default function CreateDeliveryForm({
     // Form state
     const [formData, setFormData] = useState({
         refId: '',
+        riderId: '',
         riderName: '',
         riderPhone: '',
         customerName: '',
@@ -144,6 +145,7 @@ export default function CreateDeliveryForm({
         const newSession = {
             id: sessionId,
             refId: formData.refId,
+            riderId: formData.riderId || null,
             riderName: formData.riderName,
             riderPhone: formData.riderPhone,
             customerName: formData.customerName,
@@ -246,6 +248,7 @@ export default function CreateDeliveryForm({
                                 onSelect={(rider) => {
                                     setFormData(prev => ({
                                         ...prev,
+                                        riderId: rider.id,
                                         riderName: rider.name,
                                         riderPhone: rider.phone
                                     }));

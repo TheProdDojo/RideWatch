@@ -300,8 +300,21 @@
         </button>
 
         <!-- Session Info -->
-        <div class="text-center text-xs text-gray-600">
-            Session: <span class="font-bold text-gray-500" x-text="sessionId"></span>
+        Session: <span class="font-bold text-gray-500" x-text="sessionId"></span>
+        </div>
+
+        <!-- Stats Mini View -->
+        <div class="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-gray-800">
+            <div class="bg-gray-900 p-3 rounded-xl text-center">
+                <div class="text-xs text-gray-500 uppercase">Today</div>
+                <div class="text-xl font-bold text-white" x-text="todayDeliveries"></div>
+                <div class="text-xl font-bold text-gray-600/50 text-[10px]">Deliveries</div>
+            </div>
+            <div class="bg-gray-900 p-3 rounded-xl text-center">
+                <div class="text-xs text-gray-500 uppercase">Rating</div>
+                <div class="text-xl font-bold text-yellow-500" x-text="averageRating"></div>
+                <div class="text-xl font-bold text-gray-600/50 text-[10px]">Average</div>
+            </div>
         </div>
     </footer>
 
@@ -439,10 +452,53 @@
                                 this.isCompleted = true;
                                 this.elapsedTime = 'DONE';
                             }
+
+                            // Load Stats if riderId exists
+                            if (session.riderId) {
+                                this.fetchRiderStats(session.riderId);
+                            }
                         }
                     } catch (e) {
                         console.log('Demo mode - using mock stop code');
                         this.sessionStopCode = '4829'; // Demo fallback
+                    }
+                },
+
+                async fetchRiderStats(riderId) {
+                    try {
+                        console.log('Fetching stats for rider:', riderId);
+                        const snapshot = await firebase.database().ref('sessions')
+                            .orderByChild('riderId')
+                            .equalTo(riderId)
+                            .once('value');
+
+                        const sessions = snapshot.val();
+                        if (!sessions) return;
+
+                        const sessionList = Object.values(sessions);
+
+                        // Today's count
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        const todayMs = today.getTime();
+
+                        const todayCount = sessionList.filter(s =>
+                            s.status === 'completed' &&
+                            s.completedAt &&
+                            s.completedAt >= todayMs
+                        ).length;
+
+                        this.todayDeliveries = todayCount;
+
+                        // Rating
+                        const ratedSessions = sessionList.filter(s => s.rating);
+                        if (ratedSessions.length > 0) {
+                            const totalRating = ratedSessions.reduce((sum, s) => sum + parseFloat(s.rating), 0);
+                            this.averageRating = (totalRating / ratedSessions.length).toFixed(1);
+                        }
+
+                    } catch (e) {
+                        console.warn('Stats fetch failed:', e);
                     }
                 },
 
@@ -506,6 +562,9 @@
                 },
 
                 async startTracking(isResuming = false) {
+                    // Prevent duplicate timers
+                    if (this.timerInterval) clearInterval(this.timerInterval);
+
                     this.isTracking = true;
                     this.statusText = 'TRACKING ACTIVE';
 

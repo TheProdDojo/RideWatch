@@ -66,37 +66,48 @@ export default function SessionDetailsModal({ session, onClose }) {
 
                 <div className="p-6 space-y-6">
                     {/* Key Info Grid */}
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-700">
-                            <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Status</div>
-                            <div className="flex items-center gap-2">
-                                <span className={`w-3 h-3 rounded-full ${session.status === 'active' ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' :
-                                    session.status === 'completed' ? 'bg-blue-500' : 'bg-yellow-500'
-                                    }`}></span>
-                                <span className="font-semibold text-white capitalize">{session.status}</span>
-                            </div>
+                    <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-700">
+                        <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Status</div>
+                        <div className="flex items-center gap-2">
+                            <span className={`w-3 h-3 rounded-full ${session.status === 'active' ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' :
+                                session.status === 'completed' ? 'bg-blue-500' : 'bg-yellow-500'
+                                }`}></span>
+                            <span className="font-semibold text-white capitalize">{session.status}</span>
                         </div>
-                        <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-700">
-                            <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Stop Code</div>
-                            <div className="font-mono text-2xl font-bold text-green-400 tracking-wider">
-                                {session.stopCode}
-                            </div>
-                        </div>
-                        <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-700 col-span-2 md:col-span-1">
-                            <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Rider PIN</div>
-                            <div className="font-mono text-2xl font-bold text-blue-400 tracking-wider">
-                                {session.riderPin || 'N/A'}
-                            </div>
-                        </div>
-                        {durationDisplay && (
-                            <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-700 col-span-2 md:col-span-1">
-                                <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Duration</div>
-                                <div className="font-mono text-2xl font-bold text-yellow-400 tracking-wider">
-                                    {durationDisplay}
-                                </div>
-                            </div>
-                        )}
                     </div>
+                    <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-700">
+                        <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Rating</div>
+                        <div className="font-mono text-2xl font-bold tracking-wider flex items-center gap-1">
+                            {session.rating ? (
+                                <>
+                                    <span className="text-yellow-400">★</span>
+                                    <span className="text-white">{session.rating}</span>
+                                </>
+                            ) : (
+                                <span className="text-slate-500 text-lg font-sans">No Rating</span>
+                            )}
+                        </div>
+                    </div>
+                    <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-700">
+                        <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Stop Code</div>
+                        <div className="font-mono text-2xl font-bold text-green-400 tracking-wider">
+                            {session.stopCode}
+                        </div>
+                    </div>
+                    <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-700">
+                        <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Rider PIN</div>
+                        <div className="font-mono text-2xl font-bold text-blue-400 tracking-wider">
+                            {session.riderPin || 'N/A'}
+                        </div>
+                    </div>
+                    {durationDisplay && (
+                        <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-700">
+                            <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Duration</div>
+                            <div className="font-mono text-2xl font-bold text-yellow-400 tracking-wider">
+                                {durationDisplay}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Locations */}
                     <div className="space-y-4">

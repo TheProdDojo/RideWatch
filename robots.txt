@@ -1,7 +1,7 @@
 User-agent: *
 Allow: /
 Disallow: /admin-app/
-Sitemap: https://ridewatch.io/sitemap.xml
+Sitemap: https://ridewatchapp.com/sitemap.xml
 
 # LLM Context
 Allow: /llms.txt

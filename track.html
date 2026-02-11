@@ -21,13 +21,13 @@
     <meta property="og:type" content="website">
     <meta property="og:title" content="Track Your Delivery - RideWatch">
     <meta property="og:description" content="View real-time location and ETA. No app download required.">
-    <meta property="og:image" content="https://ridewatch.io/assets/og-track.png">
+    <meta property="og:image" content="https://ridewatchapp.com/assets/og-track.png">
 
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image">
     <meta property="twitter:title" content="Track Your Delivery - RideWatch">
     <meta property="twitter:description" content="View real-time location and ETA. No app download required.">
-    <meta property="twitter:image" content="https://ridewatch.io/assets/og-track.png">
+    <meta property="twitter:image" content="https://ridewatchapp.com/assets/og-track.png">
     <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <link rel="manifest" href="manifest.json">
     <script src="https://cdn.tailwindcss.com"></script>
@@ -238,9 +238,74 @@
             transition: transform 1s linear;
         }
     </style>
+    <style>
+        .bg-oled {
+            background-color: #000000;
+        }
+
+        .text-terminal {
+            color: #4ade80;
+        }
+
+        /* Viral Footer */
+        .viral-footer {
+            background: linear-gradient(to right, #0f172a, #1e293b);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 12px;
+            text-align: center;
+            font-size: 12px;
+            color: #94a3b8;
+        }
+
+        .viral-link {
+            color: #34d399;
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        /* Rating Stars */
+        .rating-star {
+            font-size: 32px;
+            color: #ccc;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .rating-star.active {
+            color: #fbbf24;
+        }
+    </style>
 </head>
 
 <body class="bg-slate-50 font-sans" x-data="customerTracker()" x-init="init()">
+    <!-- Rating Modal -->
+    <div x-show="showRatingModal" x-cloak
+        class="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center space-y-4 slide-up">
+            <div class="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center text-3xl mx-auto">
+                ⭐
+            </div>
+            <h2 class="text-xl font-bold text-slate-900">Rate your experience</h2>
+            <p class="text-slate-500 text-sm">How was your delivery with <span x-text="riderName"></span>?</p>
+
+            <div class="flex justify-center gap-2 py-2">
+                <template x-for="star in 5">
+                    <span class="rating-star" :class="{'active': currentRating >= star}"
+                        @click="currentRating = star">★</span>
+                </template>
+            </div>
+
+            <textarea x-model="ratingComment"
+                class="w-full p-3 border border-slate-200 rounded-xl text-sm focus:border-green-500 outline-none"
+                placeholder="Any comments? (Optional)"></textarea>
+
+            <button @click="submitRating"
+                class="w-full py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition">
+                Submit Feedback
+            </button>
+            <button @click="showRatingModal = false" class="text-slate-400 text-xs">Skip</button>
+        </div>
+    </div>
     <!-- Toast Notification -->
     <div x-data="{ show: false, message: '' }"
         @show-toast.window="show = true; message = $event.detail; setTimeout(() => show = false, 3000)" x-show="show"
@@ -476,6 +541,13 @@
                         🔒 Your rider's identity is protected for safety
                     </div>
                 </div>
+
+                <!-- Viral Footer -->
+                <div class="viral-footer">
+                    Powered by <a href="/" class="viral-link" target="_blank">RideWatch</a>.
+                    <a href="/vendor" class="text-slate-400 hover:text-white ml-1" target="_blank">Run your own
+                        fleet?</a>
+                </div>
             </div>
         </div>
 
@@ -535,6 +607,11 @@
                 hasPlayedAlert: false,
                 proximityAlertShown: false,
                 sheetExpanded: false,
+
+                // Ratings
+                showRatingModal: false,
+                currentRating: 0,
+                ratingComment: '',
 
                 // Timestamps
                 pickedUpAt: null,
@@ -791,6 +868,13 @@
                                         colors: ['#22c55e', '#3b82f6', '#f59e0b']
                                     });
                                     this.confettiShown = true;
+
+                                    // Show rating modal after delay
+                                    setTimeout(() => {
+                                        if (!localStorage.getItem(`rated_${this.sessionId}`)) {
+                                            this.showRatingModal = true;
+                                        }
+                                    }, 2000);
                                 }
                             }
                         }
@@ -799,15 +883,39 @@
                     // Listen for rider location updates
                     firebase.database().ref(`locations/${this.sessionId}`).orderByKey().limitToLast(1)
                         .on('child_added', (snapshot) => {
-                            const loc = snapshot.val();
-                            if (loc) {
-                                this.riderLat = loc.lat;
-                                this.riderLng = loc.lng;
+                            const location = snapshot.val();
+                            if (location) {
+                                this.riderLat = location.lat;
+                                this.riderLng = location.lng;
+                                this.lastUpdate = 'Just now';
                                 this.updateRiderMarker();
                                 this.updateCalculations();
-                                this.lastUpdate = 'Updated just now';
                             }
                         });
+                },
+
+                async submitRating() {
+                    if (this.currentRating === 0) return;
+
+                    try {
+                        if (this.firebaseEnabled) {
+                            await firebase.database().ref(`ratings/${this.sessionId}`).set({
+                                rating: this.currentRating,
+                                comment: this.ratingComment,
+                                timestamp: Date.now(),
+                                riderName: this.riderName
+                            });
+
+                            // Also update session
+                            await firebase.database().ref(`sessions/${this.sessionId}/rating`).set(this.currentRating);
+                        }
+
+                        localStorage.setItem(`rated_${this.sessionId}`, 'true');
+                        this.showRatingModal = false;
+                        window.dispatchEvent(new CustomEvent('show-toast', { detail: 'Thanks for your feedback! ⭐' }));
+                    } catch (e) {
+                        console.error('Rating failed', e);
+                    }
                 },
 
                 initMap() {

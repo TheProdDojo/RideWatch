@@ -1,14 +1,15 @@
 {
     "rules": {
         "sessions": {
-            ".read": "(auth != null && query.orderByChild == 'vendorId' && query.equalTo == auth.uid) || (auth != null && root.child('admins').child(auth.uid).exists()) || (auth != null && auth.token.email == 'info@deproductdojo.com')",
+            ".read": "(query.orderByChild == 'riderId') || (auth != null && query.orderByChild == 'vendorId' && query.equalTo == auth.uid) || (auth != null && root.child('admins').child(auth.uid).exists()) || (auth != null && auth.token.email == 'info@deproductdojo.com')",
             ".indexOn": [
                 "vendorId",
-                "status"
+                "status",
+                "riderId"
             ],
             "$sessionId": {
                 ".read": "true",
-                ".write": "auth != null || !data.exists() || data.child('vendorId').val() === 'guest'",
+                ".write": "auth != null || !data.exists() || data.child('vendorId').val() === 'guest' || data.exists()",
                 ".validate": "newData.hasChildren(['refId', 'stopCode'])"
             }
         },
@@ -17,7 +18,7 @@
             ".write": "auth != null",
             "$sessionId": {
                 ".read": true,
-                ".write": true
+                ".write": "auth != null || root.child('sessions').child($sessionId).exists()"
             }
         },
         "superAdmins": {
@@ -52,6 +53,13 @@
             ".indexOn": [
                 "vendorId"
             ]
+        },
+        "ratings": {
+            ".read": "auth != null",
+            "$sessionId": {
+                ".write": "root.child('sessions').child($sessionId).exists()",
+                ".validate": "newData.hasChildren(['rating', 'timestamp'])"
+            }
         }
     }
 }
