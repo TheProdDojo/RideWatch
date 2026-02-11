@@ -1,0 +1,22 @@
+# RideWatch
+
+> Logistics tracking that lives in WhatsApp.
+
+## About
+RideWatch is a lightweight, offline-first logistics tracking platform built for emerging markets (specifically Lagos, Nigeria). It allows vendors to generate tracking links for their riders and send them directly to customers via WhatsApp.
+
+## Core Value Propositions
+- **Zero Install**: Neither the rider nor the customer needs to download an app. Everything runs in the browser.
+- **Offline First**: The rider app (PWA) works offline, caching coordinates and syncing when the network returns.
+- **Battery Efficient**: Optimized for OLED screens (Dark Mode default) and low-end devices.
+- **WhatsApp Centric**: The primary interface for customers is a shared link in WhatsApp.
+
+## Technical Architecture
+- **Frontend**: Vanilla JS + Tailwind CSS (No heavy frameworks for rider/customer views).
+- **Backend / Realtime**: Firebase Realtime Database.
+- **Hosting**: Vercel / Firebase Hosting.
+
+## Key Links
+- **Homepage**: https://ridewatch.io/
+- **Vendor Portal**: https://ridewatch.io/vendor/
+- **Privacy Policy**: https://ridewatch.io/privacy.html
