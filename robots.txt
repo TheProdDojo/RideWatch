@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+Disallow: /admin-app/
+Sitemap: https://ridewatch.io/sitemap.xml
