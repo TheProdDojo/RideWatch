@@ -3,6 +3,10 @@
   "outputDirectory": ".",
   "rewrites": [
     {
+      "source": "/assets/(.*)",
+      "destination": "/admin-app/dist/assets/$1"
+    },
+    {
       "source": "/vendor/:path*",
       "destination": "/admin-app/dist/index.html"
     },
@@ -13,10 +17,6 @@
     {
       "source": "/admin/:path*",
       "destination": "/admin-app/dist/:path*"
-    },
-    {
-      "source": "/admin",
-      "destination": "/admin-app/dist/index.html"
     }
   ],
   "headers": [
