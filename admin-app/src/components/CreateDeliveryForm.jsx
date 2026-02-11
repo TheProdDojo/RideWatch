@@ -220,12 +220,12 @@ export default function CreateDeliveryForm({
     return (
         <>
             <div className="bg-slate-800 rounded-xl border border-slate-700">
-                <div className="px-6 py-4 border-b border-slate-700 bg-slate-800/50 rounded-t-xl">
-                    <h2 className="font-semibold flex items-center gap-2">
+                <div className="px-4 md:px-6 py-4 border-b border-slate-700 bg-slate-800/50 rounded-t-xl">
+                    <h2 className="text-sm md:text-base font-semibold flex items-center gap-2">
                         <span>🔗</span> Generate Tracking Link
                     </h2>
                 </div>
-                <div className="p-6">
+                <div className="p-4 md:p-6">
                     <form onSubmit={generateLink} className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                             <label className="block text-sm text-slate-400 mb-2">Reference / Order ID *</label>
@@ -335,13 +335,13 @@ export default function CreateDeliveryForm({
                             />
                         </div>
 
-                        <div className="md:col-span-3">
+                        <div className="md:col-span-3 pt-2">
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="px-8 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition disabled:opacity-50"
+                                className="w-full md:w-auto px-8 py-4 md:py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition disabled:opacity-50 shadow-lg shadow-green-900/20 active:scale-[0.98]"
                             >
-                                {loading ? 'Generating...' : 'Generate Links'}
+                                {loading ? 'Generating...' : 'Generate Links 🚀'}
                             </button>
                         </div>
                     </form>
@@ -351,12 +351,12 @@ export default function CreateDeliveryForm({
                 {generatedLinks && (
                     <div className="p-6 bg-green-900/20 border-t border-green-700/30 space-y-4">
                         {/* Stop Code */}
-                        <div className="bg-slate-800 border-2 border-dashed border-green-500/50 rounded-lg p-6 text-center">
-                            <div className="text-sm text-slate-400 mb-1">🔐 Stop Code (Give to Customer)</div>
-                            <div className="text-5xl font-mono font-bold text-green-400 tracking-[0.3em]">
+                        <div className="bg-slate-800 border-2 border-dashed border-green-500/50 rounded-lg p-5 md:p-6 text-center">
+                            <div className="text-[10px] md:text-sm text-slate-400 mb-1 uppercase tracking-widest font-bold">🔐 Stop Code (for Customer)</div>
+                            <div className="text-4xl md:text-5xl font-mono font-bold text-green-400 tracking-[0.3em]">
                                 {generatedLinks.stopCode}
                             </div>
-                            <div className="text-xs text-slate-500 mt-2">Rider needs this code to complete delivery</div>
+                            <div className="text-[10px] md:text-xs text-slate-500 mt-2">Rider needs this to complete delivery</div>
                         </div>
 
                         {/* Rider PIN */}

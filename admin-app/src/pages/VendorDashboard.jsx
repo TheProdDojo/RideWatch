@@ -373,48 +373,40 @@ export default function VendorDashboard() {
             />
 
             {/* Guest Header */}
-            <header className="bg-slate-800 border-b border-slate-700">
-                <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
-                    <h1 className="text-xl font-bold">
+            <header className="bg-slate-800 border-b border-slate-700 sticky top-0 z-40">
+                <div className="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
+                    <h1 className="text-lg md:text-xl font-bold">
                         <span className="text-green-400">Ride</span>Watch
-                        <span className="text-xs ml-2 text-slate-400">
+                        <span className="hidden sm:inline-block text-xs ml-2 text-slate-400">
                             {isGuest ? 'Free Tool' : 'Vendor Portal'}
                         </span>
                     </h1>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 md:gap-3">
                         {isGuest ? (
-                            <>
+                            <div className="flex items-center gap-2">
                                 <Link
                                     to="/vendor/login"
-                                    className="px-4 py-2 text-sm text-slate-300 hover:text-white transition"
+                                    className="px-3 py-1.5 text-xs md:text-sm text-slate-300 hover:text-white transition"
                                 >
-                                    Sign In
+                                    Login
                                 </Link>
                                 <Link
                                     to="/vendor/signup"
-                                    className="px-4 py-2 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg transition"
+                                    className="px-3 py-1.5 text-xs md:text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg transition font-bold"
                                 >
-                                    Create Account
+                                    Sign Up
                                 </Link>
-                            </>
+                            </div>
                         ) : (
-                            <div className="flex items-center gap-3">
-                                <div className="text-right">
+                            <div className="flex items-center gap-2 md:gap-3">
+                                <div className="text-right hidden sm:block">
                                     <div className="font-bold text-white text-sm">
                                         {vendorProfile?.businessName || 'Vendor'}
                                         {vendorProfile?.planType === 'pro' && (
                                             <span className="ml-2 bg-gradient-to-r from-yellow-500 to-amber-600 text-white text-[10px] px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">PRO</span>
                                         )}
-                                        {!vendorProfile?.planType && (
-                                            <button
-                                                onClick={() => setSubscriptionModalOpen(true)}
-                                                className="ml-2 bg-slate-600 hover:bg-green-600 text-slate-300 hover:text-white text-[10px] px-1.5 py-0.5 rounded uppercase font-bold tracking-wider transition cursor-pointer"
-                                            >
-                                                FREE (UPGRADE)
-                                            </button>
-                                        )}
                                     </div>
-                                    <div className="text-xs text-slate-400">{user?.email}</div>
+                                    <div className="text-[10px] text-slate-400 truncate max-w-[120px]">{user?.email}</div>
                                 </div>
                                 <button
                                     onClick={() => setSettingsModalOpen(true)}
@@ -425,9 +417,9 @@ export default function VendorDashboard() {
                                 </button>
                                 <button
                                     onClick={signOut}
-                                    className="px-4 py-2 text-xs bg-slate-700 hover:bg-red-900/50 hover:text-red-400 rounded-lg transition border border-slate-600"
+                                    className="px-3 py-1.5 text-[10px] md:text-xs bg-slate-700 hover:bg-red-900/50 hover:text-red-400 rounded-lg transition border border-slate-600 font-medium"
                                 >
-                                    Sign Out
+                                    Exit
                                 </button>
                             </div>
                         )}
@@ -470,18 +462,22 @@ export default function VendorDashboard() {
                         <p className="text-slate-400">Generate tracking links and monitor deliveries</p>
                     </div>
                     <div className="flex items-center gap-3">
-                        <div className="hidden md:flex items-center gap-4 mr-4 text-xs font-medium text-slate-400 bg-slate-800/50 px-3 py-1.5 rounded-lg border border-slate-700/50">
-                            <div className="flex items-center gap-2">
-                                <span>Active:</span>
+                        <div className="flex items-center gap-2 md:gap-4 mr-0 md:mr-4 text-[10px] md:text-xs font-medium text-slate-400 bg-slate-800/50 px-2 md:px-3 py-1 md:py-1.5 rounded-lg border border-slate-700/50">
+                            <div className="flex items-center gap-1.5 md:gap-2">
+                                <span className="hidden xs:inline">Active:</span>
                                 <span className={`${usage.activeLimitReached ? 'text-red-400' : 'text-white'}`}>
-                                    {usage.activeCount} / {usage.limits.maxActive === Infinity ? '∞' : usage.limits.maxActive}
+                                    {usage.activeCount}
+                                    <span className="opacity-50 mx-0.5">/</span>
+                                    {usage.limits.maxActive === Infinity ? '∞' : usage.limits.maxActive}
                                 </span>
                             </div>
                             <div className="w-px h-3 bg-slate-700"></div>
-                            <div className="flex items-center gap-2">
-                                <span>Monthly:</span>
+                            <div className="flex items-center gap-1.5 md:gap-2">
+                                <span className="hidden xs:inline">Monthly:</span>
                                 <span className={`${usage.monthlyLimitReached ? 'text-red-400' : 'text-white'}`}>
-                                    {usage.monthlyCount} / {usage.limits.maxMonthly === Infinity ? '∞' : usage.limits.maxMonthly}
+                                    {usage.monthlyCount}
+                                    <span className="opacity-50 mx-0.5">/</span>
+                                    {usage.limits.maxMonthly === Infinity ? '∞' : usage.limits.maxMonthly}
                                 </span>
                             </div>
                         </div>
@@ -498,34 +494,34 @@ export default function VendorDashboard() {
                 </div>
 
                 {/* Navigation Tabs */}
-                <div className="flex flex-wrap gap-2 bg-slate-800 p-1.5 rounded-xl border border-slate-700 w-fit">
+                <div className="flex flex-wrap gap-2 bg-slate-800 p-1 md:p-1.5 rounded-xl border border-slate-700 w-full md:w-fit">
                     <button
                         onClick={() => setActiveTab('active')}
-                        className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'active' ? 'bg-green-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
+                        className={`flex-1 md:flex-none px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-bold transition whitespace-nowrap ${activeTab === 'active' ? 'bg-green-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
                     >
-                        🚀 Active / Dispatch
+                        🚀 <span className="hidden xs:inline">Active</span>
                     </button>
                     {!isGuest && (
                         <>
                             <button
                                 onClick={() => setActiveTab('riders')}
-                                className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'riders' ? 'bg-green-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
+                                className={`flex-1 md:flex-none px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-bold transition whitespace-nowrap ${activeTab === 'riders' ? 'bg-green-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
                             >
-                                🛵 My Fleet
+                                🛵 <span className="hidden xs:inline">Fleet</span>
                             </button>
                             <button
                                 onClick={() => setActiveTab('customers')}
-                                className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'customers' ? 'bg-green-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
+                                className={`flex-1 md:flex-none px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-bold transition whitespace-nowrap ${activeTab === 'customers' ? 'bg-green-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
                             >
-                                👥 Address Book
+                                👥 <span className="hidden xs:inline">Contacts</span>
                             </button>
                         </>
                     )}
                     <button
                         onClick={() => setActiveTab('history')}
-                        className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'history' ? 'bg-green-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
+                        className={`flex-1 md:flex-none px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-bold transition whitespace-nowrap ${activeTab === 'history' ? 'bg-green-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
                     >
-                        📜 History
+                        📜 <span className="hidden xs:inline">History</span>
                     </button>
                 </div>
                 {/* Link Generator */}
@@ -570,7 +566,7 @@ export default function VendorDashboard() {
                             <h2 className="text-xl font-bold">My Fleet</h2>
                             <button onClick={() => setRiderModal({ isOpen: true, data: null })} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition">+ Add Rider</button>
                         </div>
-                        <div className="overflow-x-auto">
+                        <div className="hidden md:block overflow-x-auto">
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="text-slate-400 border-b border-slate-700">
@@ -631,6 +627,60 @@ export default function VendorDashboard() {
                                 </tbody>
                             </table>
                         </div>
+
+                        {/* Mobile Card View for Riders */}
+                        <div className="md:hidden space-y-4">
+                            {myRiders.map(rider => {
+                                const riderSessions = sessions.filter(s => {
+                                    const hasRating = s.rating;
+                                    if (!hasRating) return false;
+                                    if (s.riderId) return s.riderId === rider.id;
+                                    return s.riderName === rider.name;
+                                });
+                                const totalRating = riderSessions.reduce((sum, s) => sum + parseInt(s.rating || 0), 0);
+                                const avgRating = riderSessions.length > 0 ? (totalRating / riderSessions.length).toFixed(1) : null;
+
+                                return (
+                                    <div key={rider.id} className="bg-slate-900/50 border border-slate-700 rounded-xl p-4 space-y-3">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <h3 className="font-bold text-white">{rider.name}</h3>
+                                                <p className="text-xs text-slate-400">{rider.phone}</p>
+                                            </div>
+                                            <span className={`text-[10px] px-2 py-0.5 rounded-full border ${rider.status === 'active' ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-slate-500/10 text-slate-400 border-slate-500/20'}`}>
+                                                {rider.status.toUpperCase()}
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-sm">
+                                            <div className="flex items-center gap-1">
+                                                {avgRating ? (
+                                                    <>
+                                                        <span className="text-yellow-400">★</span>
+                                                        <span className="font-bold text-white">{avgRating}</span>
+                                                        <span className="text-[10px] text-slate-500">({riderSessions.length})</span>
+                                                    </>
+                                                ) : (
+                                                    <span className="text-slate-500 text-xs italic">No ratings</span>
+                                                )}
+                                            </div>
+                                            <div className="flex gap-4">
+                                                <button
+                                                    onClick={() => {
+                                                        setRiderFilter(rider.id);
+                                                        setActiveTab('history');
+                                                    }}
+                                                    className="text-green-400 text-xs font-bold"
+                                                >
+                                                    History
+                                                </button>
+                                                <button onClick={() => setRiderModal({ isOpen: true, data: rider })} className="text-blue-400 text-xs font-bold">Edit</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                            {myRiders.length === 0 && <p className="text-center text-slate-500 py-4 italic">No riders yet.</p>}
+                        </div>
                     </div>
                 )}
 
@@ -641,7 +691,7 @@ export default function VendorDashboard() {
                             <h2 className="text-xl font-bold">Address Book</h2>
                             <button onClick={() => { setCustomerModal({ isOpen: true, data: null }); setCustomerFormAddress(''); }} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition">+ Add Customer</button>
                         </div>
-                        <div className="overflow-x-auto">
+                        <div className="hidden md:block overflow-x-auto">
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="text-slate-400 border-b border-slate-700">
@@ -656,13 +706,28 @@ export default function VendorDashboard() {
                                         <tr key={cust.id} className="border-b border-slate-700/50 hover:bg-slate-700/30">
                                             <td className="p-3">{cust.name}</td>
                                             <td className="p-3">{cust.phone}</td>
-                                            <td className="p-3">{cust.defaultAddress}</td>
+                                            <td className="p-3 text-sm text-slate-400">{cust.defaultAddress}</td>
                                             <td className="p-3"><button onClick={() => { setCustomerModal({ isOpen: true, data: cust }); setCustomerFormAddress(cust.defaultAddress || ''); }} className="text-blue-400 hover:underline">Edit</button></td>
                                         </tr>
                                     ))}
                                     {myCustomers.length === 0 && <tr><td colSpan="4" className="p-6 text-center text-slate-500">No customers yet.</td></tr>}
                                 </tbody>
                             </table>
+                        </div>
+
+                        {/* Mobile Card View for Customers */}
+                        <div className="md:hidden space-y-4">
+                            {myCustomers.map(cust => (
+                                <div key={cust.id} className="bg-slate-900/50 border border-slate-700 rounded-xl p-4 space-y-2">
+                                    <div className="flex justify-between items-start">
+                                        <h3 className="font-bold text-white">{cust.name}</h3>
+                                        <button onClick={() => { setCustomerModal({ isOpen: true, data: cust }); setCustomerFormAddress(cust.defaultAddress || ''); }} className="text-blue-400 text-xs font-bold">Edit</button>
+                                    </div>
+                                    <p className="text-xs text-slate-400">{cust.phone}</p>
+                                    <p className="text-xs text-slate-500 line-clamp-2">{cust.defaultAddress}</p>
+                                </div>
+                            ))}
+                            {myCustomers.length === 0 && <p className="text-center text-slate-500 py-4 italic">No customers yet.</p>}
                         </div>
                     </div>
                 )}
@@ -749,7 +814,7 @@ export default function VendorDashboard() {
                                 </div>
                             )}
                         </div>
-                        <div className="overflow-x-auto">
+                        <div className="hidden md:block overflow-x-auto">
                             <table className="w-full text-sm">
                                 <thead className="bg-slate-700/50 text-slate-400 uppercase text-xs">
                                     <tr>
@@ -807,30 +872,91 @@ export default function VendorDashboard() {
                                             </td>
                                         </tr>
                                     ))}
-                                    {(activeTab === 'active' ? activeTableSessions : historyTableSessions).length === 0 && (
-                                        <tr>
-                                            <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
-                                                <div className="flex flex-col items-center justify-center opacity-50 space-y-3">
-                                                    <div className="text-6xl filter grayscale opacity-50">
-                                                        {activeTab === 'active' ? '🛵' : '📂'}
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-medium text-lg">
-                                                            {activeTab === 'active' ? 'No active deliveries' : 'No delivery history'}
-                                                        </p>
-                                                        <p className="text-sm">
-                                                            {activeTab === 'active'
-                                                                ? 'Generate a new tracking link to get started.'
-                                                                : 'Completed deliveries will appear here.'}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    )}
                                 </tbody>
                             </table>
                         </div>
+
+                        {/* Mobile Card View for Deliveries */}
+                        <div className="md:hidden divide-y divide-slate-700">
+                            {(activeTab === 'active' ? activeTableSessions : historyTableSessions).map((session) => (
+                                <div key={session.id} className="p-4 space-y-3 hover:bg-slate-700/20 transition">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <div className="text-xs text-slate-500 font-medium">#{session.refId}</div>
+                                            <div className="font-bold text-white text-base">{session.riderName}</div>
+                                        </div>
+                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${getStatusBadge(session.status)}`}>
+                                            {session.status?.toUpperCase()}
+                                        </span>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="bg-slate-900/50 rounded-lg p-2 border border-slate-700/50">
+                                            <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Stop Code</div>
+                                            <div className="font-mono font-bold text-green-400 text-lg leading-none">{session.stopCode}</div>
+                                        </div>
+                                        <div className="bg-slate-900/50 rounded-lg p-2 border border-slate-700/50">
+                                            <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Status</div>
+                                            <div className="text-xs text-slate-300 truncate">
+                                                {session.battery ? (
+                                                    <span className={session.battery > 30 ? 'text-green-400' : session.battery > 15 ? 'text-yellow-400' : 'text-red-400'}>
+                                                        🔋 {session.battery}%
+                                                    </span>
+                                                ) : '—'}
+                                                <span className="mx-1 text-slate-700">|</span>
+                                                <span className="text-[10px]">{session.lastPing || 'No ping'}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-2 pt-1">
+                                        <button
+                                            onClick={() => setSelectedSession(session)}
+                                            className="flex-1 py-2 bg-slate-700 font-bold text-white rounded-lg text-xs"
+                                        >
+                                            Details
+                                        </button>
+                                        {((session.lat && session.lng) || session.pickup?.lat || session.dropoff?.lat) && (
+                                            <button
+                                                onClick={() => focusOnMap(session)}
+                                                className="flex-1 py-2 bg-blue-600/20 border border-blue-500/30 text-blue-400 font-bold rounded-lg text-xs"
+                                            >
+                                                Map
+                                            </button>
+                                        )}
+                                        {session.status !== 'completed' && session.status !== 'cancelled' && (
+                                            <button
+                                                onClick={() => requestCancel(session.id)}
+                                                className="flex-1 py-2 bg-red-600/10 border border-red-500/30 text-red-400 font-bold rounded-lg text-xs"
+                                            >
+                                                Cancel
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Empty States */}
+                        {(activeTab === 'active' ? activeTableSessions : historyTableSessions).length === 0 && (
+                            <div className="px-6 py-12 text-center text-slate-400">
+                                <div className="flex flex-col items-center justify-center opacity-50 space-y-3">
+                                    <div className="text-6xl filter grayscale opacity-50">
+                                        {activeTab === 'active' ? '🛵' : '📂'}
+                                    </div>
+                                    <div>
+                                        <p className="font-medium text-lg">
+                                            {activeTab === 'active' ? 'No active deliveries' : 'No delivery history'}
+                                        </p>
+                                        <p className="text-sm">
+                                            {activeTab === 'active'
+                                                ? 'Generate a new tracking link to get started.'
+                                                : 'Completed deliveries will appear here.'}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )
                 }
