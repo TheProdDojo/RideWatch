@@ -22,7 +22,7 @@ export default function VendorOnboarding() {
         }
         // If user is admin/superadmin, go to admin dashboard
         if (role === 'admin' || role === 'superadmin') {
-            navigate('/');
+            navigate('/admin');
         }
     }, [user, role, vendorProfile, navigate]);
 

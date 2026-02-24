@@ -11,23 +11,23 @@ export default function Layout({ isVendorView = false }) {
     ];
 
     const adminNavItems = [
-        { path: '/', label: 'Dashboard', icon: '📊' },
-        { path: '/vendors', label: 'Vendors', icon: '🏪' },
-        { path: '/riders', label: 'Riders', icon: '🛵' },
-        { path: '/customers', label: 'Customers', icon: '👤' },
-        { path: '/deliveries', label: 'Deliveries', icon: '📦' }
+        { path: '/admin', label: 'Dashboard', icon: '📊' },
+        { path: '/admin/vendors', label: 'Vendors', icon: '🏪' },
+        { path: '/admin/riders', label: 'Riders', icon: '🛵' },
+        { path: '/admin/customers', label: 'Customers', icon: '👤' },
+        { path: '/admin/deliveries', label: 'Deliveries', icon: '📦' }
     ];
 
     // Add admin management for super admin
     if (isSuperAdmin || isDemoMode) {
-        adminNavItems.push({ path: '/admin-management', label: 'Admin Management', icon: '👑' });
+        adminNavItems.push({ path: '/admin/admin-management', label: 'Admin Management', icon: '👑' });
     }
 
     const navItems = isVendorView ? vendorNavItems : adminNavItems;
 
     const handleSignOut = async () => {
         await signOut();
-        navigate('/login');
+        navigate('/admin/login');
     };
 
     const getRoleBadge = () => {
@@ -67,7 +67,7 @@ export default function Layout({ isVendorView = false }) {
                         <NavLink
                             key={item.path}
                             to={item.path}
-                            end={item.path === '/' || item.path === '/vendor'}
+                            end={item.path === '/admin' || item.path === '/vendor'}
                             className={({ isActive }) =>
                                 `flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition ${isActive
                                     ? 'bg-green-600 text-white'
@@ -115,7 +115,7 @@ export default function Layout({ isVendorView = false }) {
                     <p className="text-xs text-slate-500">
                         A product of{' '}
                         <a
-                            href="https://theproductdojo.com"
+                            href="https://deproductdojo.com"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-green-400 hover:text-green-300 transition"

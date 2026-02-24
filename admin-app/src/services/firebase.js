@@ -11,7 +11,9 @@ import {
     sendSignInLinkToEmail,
     isSignInWithEmailLink,
     signInWithEmailLink,
-    sendPasswordResetEmail
+    sendPasswordResetEmail,
+    verifyPasswordResetCode,
+    confirmPasswordReset
 } from 'firebase/auth';
 import { getDatabase, ref, push, set, update, remove, onValue, get, query, orderByChild, equalTo } from 'firebase/database';
 
@@ -69,11 +71,29 @@ export const signInWithEmail = async (email, password) => {
 
 export const resetPassword = async (email) => {
     try {
-        await sendPasswordResetEmail(auth, email);
+        // Use custom API for branded emails
+        const response = await fetch('/api/reset-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email }),
+        });
+        if (!response.ok) {
+            throw new Error('Failed to send reset email');
+        }
     } catch (error) {
         console.error('Password Reset Error:', error);
-        throw error;
+        // Fallback to Firebase default if custom API fails
+        await sendPasswordResetEmail(auth, email);
     }
+};
+
+// Password reset helpers for custom reset page
+export const verifyResetCode = async (code) => {
+    return await verifyPasswordResetCode(auth, code);
+};
+
+export const confirmReset = async (code, newPassword) => {
+    return await confirmPasswordReset(auth, code, newPassword);
 };
 
 // Magic Link auth for admin invites

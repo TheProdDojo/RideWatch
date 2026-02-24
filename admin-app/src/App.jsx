@@ -12,6 +12,7 @@ import Login from './pages/Login';
 import VendorSignup from './pages/VendorSignup';
 import VendorLogin from './pages/VendorLogin';
 import VendorOnboarding from './pages/VendorOnboarding';
+import ResetPassword from './pages/ResetPassword';
 import './index.css';
 
 function ProtectedRoute({ children, requireAdmin = false }) {
@@ -26,7 +27,7 @@ function ProtectedRoute({ children, requireAdmin = false }) {
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/admin/login" replace />;
   }
 
   // If route requires admin/superadmin access
@@ -54,7 +55,7 @@ function VendorRoute({ children }) {
 
   // Admins accessing vendor route get redirected to admin dashboard
   if (isAdmin) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/admin" replace />;
   }
 
   return children;
@@ -72,12 +73,12 @@ function SuperAdminRoute({ children }) {
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/admin/login" replace />;
   }
 
   // Only super admin can access (demo mode allows access for testing)
   if (!isSuperAdmin && !isDemoMode) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/admin" replace />;
   }
 
   return children;
@@ -109,19 +110,20 @@ function AppRoutes() {
     <Routes>
       {/* Public routes */}
       {/* Admin login */}
-      <Route path="/login" element={<Login />} />
+      <Route path="/admin/login" element={<Login />} />
 
       {/* Vendor routes */}
       <Route path="/vendor/login" element={<VendorLogin />} />
       <Route path="/vendor/signup" element={<VendorSignup />} />
       <Route path="/vendor/onboarding" element={<VendorOnboarding />} />
+      <Route path="/vendor/reset-password" element={<ResetPassword />} />
 
       {/* Vendor dashboard route - PUBLIC (guest-first flow) */}
       <Route path="/vendor" element={<VendorDashboard />} />
 
       {/* Admin dashboard routes */}
       <Route
-        path="/"
+        path="/admin"
         element={
           <ProtectedRoute>
             <Layout />

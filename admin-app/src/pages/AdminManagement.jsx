@@ -16,7 +16,7 @@ export default function AdminManagement() {
     useEffect(() => {
         // Only super admin can access this page
         if (!isSuperAdmin && !isDemoMode) {
-            navigate('/');
+            navigate('/admin');
             return;
         }
 

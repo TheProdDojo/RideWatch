@@ -14,7 +14,7 @@ export default function Login() {
 
     useEffect(() => {
         if (user) {
-            navigate('/');
+            navigate('/admin');
         }
     }, [user, navigate]);
 
@@ -24,7 +24,7 @@ export default function Login() {
         setLoading(true);
         try {
             await signInWithEmail(email, password);
-            navigate('/');
+            navigate('/admin');
         } catch (error) {
             if (error.code === 'auth/invalid-credential') {
                 setError('Invalid email or password');
@@ -42,7 +42,7 @@ export default function Login() {
         setError('');
         try {
             await signInWithGoogle();
-            navigate('/');
+            navigate('/admin');
         } catch (error) {
             setError('Google sign-in failed');
         }
@@ -196,7 +196,7 @@ export default function Login() {
 
                 <p className="mt-4 text-center text-xs text-slate-600">
                     A product of{' '}
-                    <a href="https://theproductdojo.com" target="_blank" rel="noopener noreferrer" className="text-green-500 hover:text-green-400">
+                    <a href="https://deproductdojo.com" target="_blank" rel="noopener noreferrer" className="text-green-500 hover:text-green-400">
                         The Product Dojo
                     </a>
                 </p>

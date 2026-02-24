@@ -984,7 +984,7 @@ export default function VendorDashboard() {
                 <div className="text-center py-4">
                     <p className="text-xs text-slate-500">
                         A product of{' '}
-                        <a href="https://theproductdojo.com" target="_blank" rel="noopener noreferrer" className="text-green-400 hover:text-green-300">
+                        <a href="https://deproductdojo.com" target="_blank" rel="noopener noreferrer" className="text-green-400 hover:text-green-300">
                             The Product Dojo
                         </a>
                     </p>

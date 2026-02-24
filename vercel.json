@@ -15,8 +15,12 @@
       "destination": "/admin-app/dist/index.html"
     },
     {
+      "source": "/admin",
+      "destination": "/admin-app/dist/index.html"
+    },
+    {
       "source": "/admin/:path*",
-      "destination": "/admin-app/dist/:path*"
+      "destination": "/admin-app/dist/index.html"
     }
   ],
   "headers": [
@@ -34,6 +38,23 @@
         {
           "key": "X-XSS-Protection",
           "value": "1; mode=block"
+        }
+      ]
+    },
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, no-cache, must-revalidate"
+        },
+        {
+          "key": "Pragma",
+          "value": "no-cache"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
         }
       ]
     }

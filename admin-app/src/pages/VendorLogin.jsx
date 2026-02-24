@@ -201,7 +201,7 @@ export default function VendorLogin() {
 
                 <p className="mt-4 text-center text-xs text-slate-600">
                     A product of{' '}
-                    <a href="https://theproductdojo.com" target="_blank" rel="noopener noreferrer" className="text-green-500 hover:text-green-400">
+                    <a href="https://deproductdojo.com" target="_blank" rel="noopener noreferrer" className="text-green-500 hover:text-green-400">
                         The Product Dojo
                     </a>
                 </p>
