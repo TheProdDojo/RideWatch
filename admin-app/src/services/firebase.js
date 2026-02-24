@@ -369,6 +369,11 @@ export const dbHelpers = {
         return newRef.key;
     },
 
+    updateCustomer: async (customerId, updates) => {
+        const customerRef = ref(db, `customers/${customerId}`);
+        await update(customerRef, { ...updates, updatedAt: Date.now() });
+    },
+
     updateSession: async (sessionId, updates) => {
         const sessionRef = ref(db, `sessions/${sessionId}`);
         await update(sessionRef, updates);

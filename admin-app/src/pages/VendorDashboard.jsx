@@ -10,6 +10,7 @@ import { useVendorUsage } from '../hooks/useVendorUsage';
 import 'leaflet/dist/leaflet.css';
 import DashboardMap from '../components/DashboardMap';
 import CreateDeliveryForm from '../components/CreateDeliveryForm';
+import AddressAutocomplete from '../components/AddressAutocomplete';
 import { getGuestSessions, clearGuestSessions } from '../utils/guestStorage';
 
 // Component to handle map bounds and focus - MOVED TO DashboardMap.jsx
@@ -99,6 +100,8 @@ export default function VendorDashboard() {
     const [activeTab, setActiveTab] = useState('active'); // 'active' | 'history' | 'riders' | 'customers'
     const [riderModal, setRiderModal] = useState({ isOpen: false, data: null });
     const [customerModal, setCustomerModal] = useState({ isOpen: false, data: null });
+    const [customerFormAddress, setCustomerFormAddress] = useState('');
+    const [geocodingCustomerAddress, setGeocodingCustomerAddress] = useState(false);
 
     const handleSaveRider = async (e) => {
         e.preventDefault();
@@ -130,16 +133,55 @@ export default function VendorDashboard() {
         };
 
         if (customerModal.data) {
-            // For customers we might not have update helper yet, but create works for now or add update
-            // Assuming update logic exists or we add it safely. 
-            // dbHelpers.updateCustomer... wait, dbHelpers doesn't have updateCustomer!
-            // I'll add create only for now or use generic update logic
-            showToast('Editing not fully implemented yet, create a new one instead!');
+            await dbHelpers.updateCustomer(customerModal.data.id, data);
         } else {
             await dbHelpers.createCustomer(data);
-            showToast('Customer saved successfully');
         }
+        showToast('Customer saved successfully');
         setCustomerModal({ isOpen: false, data: null });
+    };
+
+    // Geocode current location for the customer address field
+    const useCurrentLocation = (field) => {
+        if (!navigator.geolocation) {
+            alert('Geolocation not supported');
+            return;
+        }
+        if (field === 'customer') {
+            setGeocodingCustomerAddress(true);
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    const { latitude, longitude } = position.coords;
+                    try {
+                        const response = await fetch(
+                            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
+                            { headers: { 'User-Agent': 'RideWatch/1.0' } }
+                        );
+                        const data = await response.json();
+                        setCustomerFormAddress(data.display_name || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
+                    } catch {
+                        setCustomerFormAddress(`${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
+                    }
+                    setGeocodingCustomerAddress(false);
+                },
+                (error) => {
+                    alert('Could not get location: ' + error.message);
+                    setGeocodingCustomerAddress(false);
+                }
+            );
+        }
+    };
+
+    // Helper: compute rider average rating from sessions
+    const getRiderRating = (rider) => {
+        const riderSessions = sessions.filter(s => {
+            if (!s.rating) return false;
+            if (s.riderId) return s.riderId === rider.id;
+            return s.riderName === rider.name;
+        });
+        const totalRating = riderSessions.reduce((sum, s) => sum + parseInt(s.rating || 0), 0);
+        const avgRating = riderSessions.length > 0 ? (totalRating / riderSessions.length).toFixed(1) : null;
+        return { avgRating, count: riderSessions.length };
     };
 
     const isGuest = !user;
@@ -579,16 +621,7 @@ export default function VendorDashboard() {
                                 </thead>
                                 <tbody>
                                     {myRiders.map(rider => {
-                                        // Calculate stats on the fly
-                                        const riderSessions = sessions.filter(s => {
-                                            const hasRating = s.rating;
-                                            if (!hasRating) return false;
-                                            // Strict match on ID if available, otherwise fallback to name
-                                            if (s.riderId) return s.riderId === rider.id;
-                                            return s.riderName === rider.name;
-                                        });
-                                        const totalRating = riderSessions.reduce((sum, s) => sum + parseInt(s.rating || 0), 0);
-                                        const avgRating = riderSessions.length > 0 ? (totalRating / riderSessions.length).toFixed(1) : null;
+                                        const { avgRating, count: ratingCount } = getRiderRating(rider);
 
                                         return (
                                             <tr key={rider.id} className="border-b border-slate-700/50 hover:bg-slate-700/30">
@@ -599,7 +632,7 @@ export default function VendorDashboard() {
                                                         <div className="flex items-center gap-1">
                                                             <span className="text-yellow-400">★</span>
                                                             <span className="font-bold text-white">{avgRating}</span>
-                                                            <span className="text-xs text-slate-500">({riderSessions.length})</span>
+                                                            <span className="text-xs text-slate-500">({ratingCount})</span>
                                                         </div>
                                                     ) : (
                                                         <span className="text-slate-500 text-xs">No ratings</span>
@@ -631,14 +664,7 @@ export default function VendorDashboard() {
                         {/* Mobile Card View for Riders */}
                         <div className="md:hidden space-y-4">
                             {myRiders.map(rider => {
-                                const riderSessions = sessions.filter(s => {
-                                    const hasRating = s.rating;
-                                    if (!hasRating) return false;
-                                    if (s.riderId) return s.riderId === rider.id;
-                                    return s.riderName === rider.name;
-                                });
-                                const totalRating = riderSessions.reduce((sum, s) => sum + parseInt(s.rating || 0), 0);
-                                const avgRating = riderSessions.length > 0 ? (totalRating / riderSessions.length).toFixed(1) : null;
+                                const { avgRating, count: ratingCount } = getRiderRating(rider);
 
                                 return (
                                     <div key={rider.id} className="bg-slate-900/50 border border-slate-700 rounded-xl p-4 space-y-3">
@@ -657,7 +683,7 @@ export default function VendorDashboard() {
                                                     <>
                                                         <span className="text-yellow-400">★</span>
                                                         <span className="font-bold text-white">{avgRating}</span>
-                                                        <span className="text-[10px] text-slate-500">({riderSessions.length})</span>
+                                                        <span className="text-[10px] text-slate-500">({ratingCount})</span>
                                                     </>
                                                 ) : (
                                                     <span className="text-slate-500 text-xs italic">No ratings</span>

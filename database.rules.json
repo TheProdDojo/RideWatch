@@ -9,7 +9,7 @@
             ],
             "$sessionId": {
                 ".read": "true",
-                ".write": "auth != null || !data.exists() || data.child('vendorId').val() === 'guest' || data.exists()",
+                ".write": "auth != null || !data.exists() || data.child('vendorId').val() === 'guest'",
                 ".validate": "newData.hasChildren(['refId', 'stopCode'])"
             }
         },

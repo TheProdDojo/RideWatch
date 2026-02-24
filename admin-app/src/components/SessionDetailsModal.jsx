@@ -19,7 +19,7 @@ export default function SessionDetailsModal({ session, onClose }) {
                 e.target.innerText = originalText;
             }, 2000);
         } catch (err) {
-            console.error('Failed to copy class:', err);
+            console.error('Failed to copy:', err);
         }
     };
 

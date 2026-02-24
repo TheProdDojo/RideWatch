@@ -14,7 +14,8 @@ export default function CreateDeliveryForm({
     riders = [],
     customers = [],
     onLimitReached,
-    onToast
+    onToast,
+    onSessionCreated
 }) {
     const isGuest = !user;
     const [loading, setLoading] = useState(false);
