@@ -520,13 +520,23 @@ export async function handleCancelDelivery(msg, params, vendor) {
 
 // ─── ONBOARDING (link WhatsApp to vendor account) ───────────────
 export async function handleOnboarding(msg) {
+    const code = generateLinkCode(msg.from);
+
+    // Store pending link so the vendor dashboard can verify it
+    await adminDb.ref(`pendingLinks/${code}`).set({
+        phone: msg.from,
+        createdAt: Date.now(),
+        expiresAt: Date.now() + (30 * 60 * 1000), // 30 min expiry
+    });
+
     await sendText(msg.from,
         `👋 *Welcome to RideWatch!*\n\n` +
         `To use RideWatch on WhatsApp, you need to connect your vendor account.\n\n` +
         `1️⃣ Go to your vendor dashboard:\n` +
         `   https://ridewatchapp.com/vendor\n\n` +
         `2️⃣ In Settings → WhatsApp, enter this code:\n` +
-        `   *${generateLinkCode(msg.from)}*\n\n` +
+        `   *${code}*\n\n` +
+        `⏱️ Code expires in 30 minutes.\n` +
         `Once linked, you can manage everything from here! 🚀`
     );
 }

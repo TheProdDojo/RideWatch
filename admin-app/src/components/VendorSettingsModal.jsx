@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { dbHelpers } from '../services/firebase';
+import { ref, update, remove } from 'firebase/database';
+import { db } from '../services/firebase';
 import AddressAutocomplete from './AddressAutocomplete';
 
 export default function VendorSettingsModal({ isOpen, onClose, vendor, user, onUpdate }) {
@@ -13,6 +15,21 @@ export default function VendorSettingsModal({ isOpen, onClose, vendor, user, onU
         supportContact: '',
         defaultPickup: null
     });
+
+    // WhatsApp linking state
+    const [waCode, setWaCode] = useState('');
+    const [waLinking, setWaLinking] = useState(false);
+    const [waError, setWaError] = useState('');
+    const [waSuccess, setWaSuccess] = useState('');
+    const [waLinked, setWaLinked] = useState(false);
+    const [waPhone, setWaPhone] = useState('');
+
+    useEffect(() => {
+        if (vendor?.whatsappPhone) {
+            setWaLinked(true);
+            setWaPhone(vendor.whatsappPhone.replace(/(\d{3})\d+(\d{4})/, '$1****$2'));
+        }
+    }, [vendor]);
 
     useEffect(() => {
         if (vendor) {
@@ -51,15 +68,15 @@ export default function VendorSettingsModal({ isOpen, onClose, vendor, user, onU
                 </div>
 
                 {/* Tabs */}
-                <div className="flex border-b border-slate-700 bg-slate-800/50">
-                    {['profile', 'preferences', 'notifications'].map(tab => (
+                <div className="flex border-b border-slate-700 bg-slate-800/50 overflow-x-auto">
+                    {['profile', 'preferences', 'whatsapp', 'notifications'].map(tab => (
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab)}
-                            className={`flex-1 py-4 text-sm font-medium transition relative ${activeTab === tab ? 'text-green-400' : 'text-slate-400 hover:text-white'
+                            className={`flex-1 py-4 text-sm font-medium transition relative whitespace-nowrap px-3 ${activeTab === tab ? 'text-green-400' : 'text-slate-400 hover:text-white'
                                 }`}
                         >
-                            {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                            {tab === 'whatsapp' ? '💬 WhatsApp' : tab.charAt(0).toUpperCase() + tab.slice(1)}
                             {activeTab === tab && (
                                 <div className="absolute bottom-0 left-0 w-full h-0.5 bg-green-500 shadow-[0_-2px_6px_rgba(34,197,94,0.4)]"></div>
                             )}
@@ -125,6 +142,140 @@ export default function VendorSettingsModal({ isOpen, onClose, vendor, user, onU
                                     className="w-full"
                                 />
                             </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'whatsapp' && (
+                        <div className="space-y-6">
+                            {/* Header */}
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="w-12 h-12 rounded-xl bg-green-500/10 flex items-center justify-center text-2xl">💬</div>
+                                <div>
+                                    <h3 className="text-lg font-bold text-white">WhatsApp Integration</h3>
+                                    <p className="text-sm text-slate-400">Manage deliveries directly from WhatsApp</p>
+                                </div>
+                            </div>
+
+                            {waLinked ? (
+                                /* Connected State */
+                                <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-5">
+                                    <div className="flex items-center gap-3 mb-3">
+                                        <span className="text-green-400 text-xl">✅</span>
+                                        <div>
+                                            <p className="text-white font-semibold">WhatsApp Connected</p>
+                                            <p className="text-sm text-slate-400">Phone: {waPhone}</p>
+                                        </div>
+                                    </div>
+                                    <p className="text-sm text-slate-400 mb-4">
+                                        Send <span className="text-green-400 font-medium">"menu"</span> to your RideWatch WhatsApp number to start managing deliveries.
+                                    </p>
+                                    <div className="bg-slate-800/60 rounded-lg p-4 mb-4">
+                                        <p className="text-xs text-slate-500 font-medium uppercase tracking-wide mb-2">What you can do</p>
+                                        <div className="grid grid-cols-2 gap-2 text-sm">
+                                            <div className="text-slate-300">📦 Create deliveries</div>
+                                            <div className="text-slate-300">🛵 Assign riders</div>
+                                            <div className="text-slate-300">📊 Daily summary</div>
+                                            <div className="text-slate-300">🔍 Track status</div>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={async () => {
+                                            if (!confirm('Disconnect WhatsApp? You can reconnect anytime.')) return;
+                                            try {
+                                                await dbHelpers.updateVendorProfile(user.uid, { whatsappPhone: null, whatsappLinkedAt: null });
+                                                setWaLinked(false);
+                                                setWaPhone('');
+                                                setWaSuccess('');
+                                            } catch (e) {
+                                                console.error(e);
+                                            }
+                                        }}
+                                        className="text-sm text-red-400 hover:text-red-300 transition"
+                                    >
+                                        Disconnect WhatsApp
+                                    </button>
+                                </div>
+                            ) : (
+                                /* Linking Flow */
+                                <>
+                                    <div className="bg-slate-700/30 rounded-xl p-5 border border-slate-600/50">
+                                        <p className="text-sm text-slate-300 mb-4">
+                                            <span className="font-semibold text-white">How to connect:</span>
+                                        </p>
+                                        <ol className="space-y-3 text-sm text-slate-400">
+                                            <li className="flex gap-3">
+                                                <span className="text-green-400 font-bold">1</span>
+                                                <span>Send <span className="text-white font-medium">"hi"</span> to the RideWatch WhatsApp number</span>
+                                            </li>
+                                            <li className="flex gap-3">
+                                                <span className="text-green-400 font-bold">2</span>
+                                                <span>You'll receive a <span className="text-white font-medium">6-character code</span></span>
+                                            </li>
+                                            <li className="flex gap-3">
+                                                <span className="text-green-400 font-bold">3</span>
+                                                <span>Enter the code below to link your account</span>
+                                            </li>
+                                        </ol>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm text-slate-400 mb-2">Link Code</label>
+                                        <div className="flex gap-3">
+                                            <input
+                                                type="text"
+                                                value={waCode}
+                                                onChange={e => {
+                                                    setWaCode(e.target.value.toUpperCase());
+                                                    setWaError('');
+                                                }}
+                                                maxLength={6}
+                                                placeholder="e.g. GOHENK"
+                                                className="flex-1 bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white text-center text-lg font-mono tracking-widest focus:border-green-500 focus:outline-none uppercase"
+                                            />
+                                            <button
+                                                onClick={async () => {
+                                                    if (!waCode || waCode.length < 4) {
+                                                        setWaError('Please enter the full code');
+                                                        return;
+                                                    }
+                                                    setWaLinking(true);
+                                                    setWaError('');
+                                                    try {
+                                                        const res = await fetch('/api/whatsapp-link', {
+                                                            method: 'POST',
+                                                            headers: { 'Content-Type': 'application/json' },
+                                                            body: JSON.stringify({ code: waCode, vendorId: user.uid }),
+                                                        });
+                                                        const data = await res.json();
+                                                        if (!res.ok) {
+                                                            setWaError(data.error || 'Failed to link');
+                                                        } else {
+                                                            setWaLinked(true);
+                                                            setWaPhone(data.phone);
+                                                            setWaSuccess('WhatsApp connected! 🎉');
+                                                            setWaCode('');
+                                                        }
+                                                    } catch (err) {
+                                                        setWaError('Network error. Try again.');
+                                                    } finally {
+                                                        setWaLinking(false);
+                                                    }
+                                                }}
+                                                disabled={waLinking || waCode.length < 4}
+                                                className="px-6 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-500 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                            >
+                                                {waLinking ? (
+                                                    <><span className="animate-spin">⏳</span> Linking...</>
+                                                ) : (
+                                                    'Link'
+                                                )}
+                                            </button>
+                                        </div>
+                                        {waError && <p className="text-red-400 text-sm mt-2">{waError}</p>}
+                                        {waSuccess && <p className="text-green-400 text-sm mt-2">{waSuccess}</p>}
+                                    </div>
+                                </>
+                            )}
                         </div>
                     )}
 
