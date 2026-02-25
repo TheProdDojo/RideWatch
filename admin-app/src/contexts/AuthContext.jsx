@@ -114,12 +114,18 @@ export const AuthProvider = ({ children }) => {
         await firebaseSignOut();
     };
 
-    // Create vendor profile after signup
+    // Create vendor profile after signup — includes 7-day free trial
     const completeVendorOnboarding = async (vendorData) => {
         if (!user) throw new Error('Must be logged in');
+        const TRIAL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+        const now = Date.now();
         await dbHelpers.createVendorProfile(user.uid, {
             ...vendorData,
-            email: user.email
+            email: user.email,
+            planType: 'trial',
+            subscriptionStatus: 'trialing',
+            trialStartedAt: now,
+            trialExpiresAt: now + TRIAL_MS
         });
         const profile = await dbHelpers.getVendorProfile(user.uid);
         setVendorProfile(profile);

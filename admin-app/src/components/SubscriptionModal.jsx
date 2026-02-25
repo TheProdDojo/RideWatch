@@ -1,12 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { usePaystackPayment } from 'react-paystack';
 import { dbHelpers } from '../services/firebase';
 import { APP_CONSTANTS } from '../constants';
+import { useModal } from './ModalProvider';
+import { ref, onValue } from 'firebase/database';
+import { db } from '../services/firebase';
 
-const SubscriptionModal = ({ isOpen, onClose, user, onSuccess }) => {
-    if (!isOpen) return null;
-
+const SubscriptionModalContent = ({ onClose, user, onSuccess }) => {
+    const { showAlert } = useModal();
     const [loading, setLoading] = useState(false);
+    const closedRef = useRef(false);
 
     const config = {
         reference: (new Date()).getTime().toString(),
@@ -26,25 +29,56 @@ const SubscriptionModal = ({ isOpen, onClose, user, onSuccess }) => {
 
     const initializePayment = usePaystackPayment(config);
 
+    // Self-healing: listen for profile changes (webhook, admin override, etc.)
+    // Only react to CHANGES — skip initial snapshot so we don't auto-close
+    // when a cancelled-pro user opens the modal to re-subscribe
+    useEffect(() => {
+        if (!user?.uid) return;
+        let isInitial = true;
+        const vendorRef = ref(db, `vendors/${user.uid}`);
+        const unsubscribe = onValue(vendorRef, (snapshot) => {
+            if (isInitial) {
+                isInitial = false;
+                return; // Skip the initial snapshot
+            }
+            const profile = snapshot.val();
+            if (profile?.planType === 'pro' && profile?.subscriptionStatus === 'active' && !closedRef.current) {
+                closedRef.current = true;
+                if (onSuccess) onSuccess();
+                onClose();
+            }
+        });
+        return () => unsubscribe();
+    }, [user?.uid]);
+
     const handleSuccess = async (reference) => {
         console.log("Paystack Success:", reference);
         setLoading(true);
+
         try {
-            // Update vendor profile directly
+            // Write immediately for instant feedback (webhook verifies server-side as backup)
             await dbHelpers.updateVendorProfile(user.uid, {
                 planType: 'pro',
                 subscriptionStatus: 'active',
                 subscriptionDate: Date.now(),
+                subscriptionExpiresAt: Date.now() + (APP_CONSTANTS.SUBSCRIPTION.BILLING_CYCLE_DAYS * 24 * 60 * 60 * 1000),
                 paystackReference: reference.reference
             });
 
-            if (onSuccess) onSuccess();
-            onClose();
+            // The Firebase listener above will detect planType='pro' and auto-close
+            // But just in case, close explicitly too
+            if (!closedRef.current) {
+                closedRef.current = true;
+                if (onSuccess) onSuccess();
+                onClose();
+            }
         } catch (error) {
             console.error("Upgrade failed:", error);
-            alert("Payment successful but profile update failed. Please screenshot this and contact support: " + (error.message || error));
-        } finally {
             setLoading(false);
+            await showAlert(
+                "Payment successful but profile update failed. Please screenshot this and contact support: " + (error.message || error),
+                { title: 'Update Failed', type: 'error' }
+            );
         }
     };
 
@@ -54,7 +88,7 @@ const SubscriptionModal = ({ isOpen, onClose, user, onSuccess }) => {
 
     return (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in">
-            <div className="bg-slate-900 border border-slate-700 p-8 rounded-2xl shadow-2xl max-w-md w-full relative overflow-hidden">
+            <div className="bg-slate-900 border border-slate-700 p-8 rounded-2xl shadow-2xl max-w-md w-full relative overflow-hidden mx-4">
                 {/* Decorative Background */}
                 <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600"></div>
                 <div className="absolute -top-24 -right-24 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl"></div>
@@ -98,9 +132,9 @@ const SubscriptionModal = ({ isOpen, onClose, user, onSuccess }) => {
 
                 <div className="space-y-3 relative z-10">
                     <button
-                        onClick={() => {
+                        onClick={async () => {
                             if (!config.publicKey) {
-                                alert("Paystack key is missing. Please check .env configuration.");
+                                await showAlert("Paystack key is missing. Please check .env configuration.", { title: 'Configuration Error', type: 'error' });
                                 return;
                             }
                             initializePayment(handleSuccess, handleClose);
@@ -111,7 +145,7 @@ const SubscriptionModal = ({ isOpen, onClose, user, onSuccess }) => {
                         {loading ? (
                             <>
                                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                                Processing...
+                                Upgrading...
                             </>
                         ) : (
                             'Pay Now via Paystack'
@@ -132,6 +166,11 @@ const SubscriptionModal = ({ isOpen, onClose, user, onSuccess }) => {
             </div>
         </div>
     );
+};
+
+const SubscriptionModal = ({ isOpen, ...props }) => {
+    if (!isOpen) return null;
+    return <SubscriptionModalContent {...props} />;
 };
 
 export default SubscriptionModal;

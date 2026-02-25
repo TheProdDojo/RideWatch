@@ -3,7 +3,9 @@ export const APP_CONSTANTS = {
         PRO_PRICE_KOBO: 1500000,
         PRO_PRICE_NAIRA: 15000,
         CURRENCY: 'NGN',
-        PLAN_NAME: 'Pro'
+        PLAN_NAME: 'Pro',
+        BILLING_CYCLE_DAYS: 30,
+        TRIAL_DURATION_DAYS: 7
     },
     LIMITS: {
         FREE: {

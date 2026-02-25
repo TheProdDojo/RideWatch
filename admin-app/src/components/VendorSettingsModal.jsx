@@ -3,10 +3,11 @@ import { dbHelpers } from '../services/firebase';
 import { ref, update, remove } from 'firebase/database';
 import { db } from '../services/firebase';
 import AddressAutocomplete from './AddressAutocomplete';
+import { APP_CONSTANTS } from '../constants';
+import { useModal } from './ModalProvider';
 
-export default function VendorSettingsModal({ isOpen, onClose, vendor, user, onUpdate }) {
-    if (!isOpen) return null;
-
+function VendorSettingsContent({ onClose, vendor, user, onUpdate }) {
+    const { showAlert, showConfirm } = useModal();
     const [activeTab, setActiveTab] = useState('profile');
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
@@ -46,14 +47,21 @@ export default function VendorSettingsModal({ isOpen, onClose, vendor, user, onU
         setLoading(true);
         try {
             await dbHelpers.updateVendorProfile(user.uid, formData);
-            if (onUpdate) onUpdate(formData); // Optimistic update or refetch trigger
+            if (onUpdate) onUpdate(formData);
             onClose();
         } catch (error) {
             console.error("Error updating profile:", error);
-            alert("Failed to update profile");
+            await showAlert("Failed to update profile. Please try again.", { title: 'Save Failed', type: 'error' });
         } finally {
             setLoading(false);
         }
+    };
+
+    // Safe date formatter — prevents "Invalid Date"
+    const formatDate = (timestamp) => {
+        if (!timestamp) return 'N/A';
+        const d = new Date(timestamp);
+        return isNaN(d.getTime()) ? 'N/A' : d.toLocaleDateString();
     };
 
     return (
@@ -69,14 +77,14 @@ export default function VendorSettingsModal({ isOpen, onClose, vendor, user, onU
 
                 {/* Tabs */}
                 <div className="flex border-b border-slate-700 bg-slate-800/50 overflow-x-auto">
-                    {['profile', 'preferences', 'whatsapp', 'notifications'].map(tab => (
+                    {['profile', 'subscription', 'preferences', 'whatsapp', 'notifications'].map(tab => (
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab)}
                             className={`flex-1 py-4 text-sm font-medium transition relative whitespace-nowrap px-3 ${activeTab === tab ? 'text-green-400' : 'text-slate-400 hover:text-white'
                                 }`}
                         >
-                            {tab === 'whatsapp' ? '💬 WhatsApp' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+                            {tab === 'whatsapp' ? '💬 WhatsApp' : tab === 'subscription' ? '💎 Plan' : tab.charAt(0).toUpperCase() + tab.slice(1)}
                             {activeTab === tab && (
                                 <div className="absolute bottom-0 left-0 w-full h-0.5 bg-green-500 shadow-[0_-2px_6px_rgba(34,197,94,0.4)]"></div>
                             )}
@@ -180,7 +188,12 @@ export default function VendorSettingsModal({ isOpen, onClose, vendor, user, onU
                                     </div>
                                     <button
                                         onClick={async () => {
-                                            if (!confirm('Disconnect WhatsApp? You can reconnect anytime.')) return;
+                                            const ok = await showConfirm('Disconnect WhatsApp? You can reconnect anytime.', {
+                                                title: 'Disconnect WhatsApp',
+                                                confirmText: 'Disconnect',
+                                                danger: true
+                                            });
+                                            if (!ok) return;
                                             try {
                                                 await dbHelpers.updateVendorProfile(user.uid, { whatsappPhone: null, whatsappLinkedAt: null });
                                                 setWaLinked(false);
@@ -279,6 +292,131 @@ export default function VendorSettingsModal({ isOpen, onClose, vendor, user, onU
                         </div>
                     )}
 
+                    {activeTab === 'subscription' && (
+                        <div className="space-y-6">
+                            {/* Current Plan Header */}
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center text-2xl">💎</div>
+                                <div>
+                                    <h3 className="text-lg font-bold text-white">Subscription</h3>
+                                    <p className="text-sm text-slate-400">Manage your plan and billing</p>
+                                </div>
+                            </div>
+
+                            {/* Plan Status Card */}
+                            <div className={`rounded-xl p-5 border ${vendor?.planType === 'pro' ? 'bg-amber-500/10 border-amber-500/20' :
+                                    vendor?.planType === 'trial' ? 'bg-blue-500/10 border-blue-500/20' :
+                                        'bg-slate-700/30 border-slate-600/50'
+                                }`}>
+                                <div className="flex items-center justify-between mb-4">
+                                    <div>
+                                        <p className="text-white font-semibold text-lg">
+                                            {vendor?.planType === 'pro' ? '👑 Pro Plan' :
+                                                vendor?.planType === 'trial' ? '⏳ Free Trial' :
+                                                    '📦 Free Plan'}
+                                        </p>
+                                        <p className="text-sm text-slate-400">
+                                            {vendor?.planType === 'pro' && vendor?.subscriptionStatus === 'active' &&
+                                                `Renews ${formatDate(vendor?.subscriptionExpiresAt)}`
+                                            }
+                                            {vendor?.planType === 'pro' && vendor?.subscriptionStatus === 'cancelled' &&
+                                                `Access until ${formatDate(vendor?.subscriptionExpiresAt)}`
+                                            }
+                                            {vendor?.planType === 'trial' && vendor?.trialExpiresAt &&
+                                                `Expires ${formatDate(vendor?.trialExpiresAt)} (${Math.max(0, Math.ceil((vendor.trialExpiresAt - Date.now()) / (1000 * 60 * 60 * 24)))} days left)`
+                                            }
+                                            {(!vendor?.planType || vendor?.planType === 'free') &&
+                                                'Limited to 5 active / 30 monthly deliveries'
+                                            }
+                                        </p>
+                                    </div>
+                                    <span className={`text-xs px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${vendor?.subscriptionStatus === 'active' ? 'bg-green-500/20 text-green-400' :
+                                            vendor?.subscriptionStatus === 'cancelled' ? 'bg-yellow-500/20 text-yellow-400' :
+                                                vendor?.subscriptionStatus === 'trialing' ? 'bg-blue-500/20 text-blue-400' :
+                                                    'bg-slate-500/20 text-slate-400'
+                                        }`}>
+                                        {vendor?.subscriptionStatus === 'active' ? 'Active' :
+                                            vendor?.subscriptionStatus === 'cancelled' ? 'Cancelling' :
+                                                vendor?.subscriptionStatus === 'trialing' ? 'Trial' :
+                                                    vendor?.subscriptionStatus === 'expired' || vendor?.subscriptionStatus === 'trial_expired' ? 'Expired' :
+                                                        'Free'}
+                                    </span>
+                                </div>
+
+                                {/* Usage Summary */}
+                                <div className="bg-slate-800/60 rounded-lg p-4 mb-4">
+                                    <p className="text-xs text-slate-500 font-medium uppercase tracking-wide mb-2">Your plan includes</p>
+                                    <div className="grid grid-cols-2 gap-2 text-sm">
+                                        <div className="text-slate-300">
+                                            {(vendor?.planType === 'pro' || vendor?.planType === 'trial') ? '∞' : '5'} active deliveries
+                                        </div>
+                                        <div className="text-slate-300">
+                                            {(vendor?.planType === 'pro' || vendor?.planType === 'trial') ? '∞' : '30'} monthly deliveries
+                                        </div>
+                                        <div className="text-slate-300">
+                                            {(vendor?.planType === 'pro' || vendor?.planType === 'trial') ? '✅' : '❌'} WhatsApp bot
+                                        </div>
+                                        <div className="text-slate-300">
+                                            {(vendor?.planType === 'pro' || vendor?.planType === 'trial') ? '✅' : '❌'} Priority support
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Actions */}
+                                {vendor?.planType === 'pro' && vendor?.subscriptionStatus === 'active' && (
+                                    <button
+                                        onClick={async () => {
+                                            const expiryStr = formatDate(vendor?.subscriptionExpiresAt);
+                                            const ok = await showConfirm(
+                                                `Cancel your Pro subscription? You'll keep access until ${expiryStr}.`,
+                                                { title: 'Cancel Subscription', confirmText: 'Cancel Subscription', cancelText: 'Keep Pro', danger: true }
+                                            );
+                                            if (!ok) return;
+                                            try {
+                                                await dbHelpers.updateVendorProfile(user.uid, {
+                                                    subscriptionStatus: 'cancelled'
+                                                });
+                                                onUpdate && onUpdate();
+                                            } catch (e) {
+                                                console.error('Cancel failed:', e);
+                                                await showAlert('Failed to cancel. Please try again.', { title: 'Error', type: 'error' });
+                                            }
+                                        }}
+                                        className="text-sm text-red-400 hover:text-red-300 transition"
+                                    >
+                                        Cancel Subscription
+                                    </button>
+                                )}
+
+                                {vendor?.planType === 'pro' && vendor?.subscriptionStatus === 'cancelled' && (
+                                    <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3 text-sm text-yellow-300">
+                                        ⚠️ Your subscription is cancelled. Pro access continues until {formatDate(vendor?.subscriptionExpiresAt)}. You can re-subscribe anytime.
+                                    </div>
+                                )}
+
+                                {(vendor?.planType === 'free' || vendor?.planType === 'trial' || vendor?.subscriptionStatus === 'expired' || vendor?.subscriptionStatus === 'trial_expired' || vendor?.subscriptionStatus === 'cancelled') && (
+                                    <button
+                                        onClick={() => {
+                                            onClose();
+                                            setTimeout(() => window.dispatchEvent(new CustomEvent('open-subscription-modal')), 200);
+                                        }}
+                                        className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-600 text-white font-bold hover:shadow-lg hover:shadow-amber-900/20 transition transform hover:-translate-y-0.5"
+                                    >
+                                        {vendor?.subscriptionStatus === 'cancelled' ? 'Re-subscribe to Pro' : 'Upgrade to Pro — ₦' + APP_CONSTANTS.SUBSCRIPTION.PRO_PRICE_NAIRA.toLocaleString() + '/mo'}
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Payment History Hint */}
+                            {vendor?.paystackReference && (
+                                <div className="text-xs text-slate-500 flex items-center gap-2">
+                                    <span>Last payment ref:</span>
+                                    <code className="bg-slate-700/50 px-2 py-0.5 rounded text-slate-400">{vendor.paystackReference}</code>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {activeTab === 'notifications' && (
                         <div className="text-center py-10">
                             <div className="text-4xl mb-4">🔔</div>
@@ -318,4 +456,9 @@ export default function VendorSettingsModal({ isOpen, onClose, vendor, user, onU
             </div>
         </div>
     );
+}
+
+export default function VendorSettingsModal({ isOpen, ...props }) {
+    if (!isOpen) return null;
+    return <VendorSettingsContent {...props} />;
 }

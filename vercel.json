@@ -1,6 +1,12 @@
 {
   "buildCommand": "cd admin-app && npm install && npm run build",
   "outputDirectory": ".",
+  "crons": [
+    {
+      "path": "/api/subscription-check",
+      "schedule": "0 0 * * *"
+    }
+  ],
   "rewrites": [
     {
       "source": "/assets/(.*)",

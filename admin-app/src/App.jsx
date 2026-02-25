@@ -13,6 +13,8 @@ import VendorSignup from './pages/VendorSignup';
 import VendorLogin from './pages/VendorLogin';
 import VendorOnboarding from './pages/VendorOnboarding';
 import ResetPassword from './pages/ResetPassword';
+import WhatsAppGuide from './pages/WhatsAppGuide';
+import { ModalProvider } from './components/ModalProvider';
 import './index.css';
 
 function ProtectedRoute({ children, requireAdmin = false }) {
@@ -105,12 +107,21 @@ function HomeRedirect() {
   return <Dashboard />;
 }
 
+// Redirect to landing page (outside SPA)
+function LandingRedirect() {
+  window.location.replace('/index.html');
+  return null;
+}
+
 function AppRoutes() {
   return (
     <Routes>
       {/* Public routes */}
       {/* Admin login */}
       <Route path="/admin/login" element={<Login />} />
+
+      {/* WhatsApp Guide (public) */}
+      <Route path="/guide" element={<WhatsAppGuide />} />
 
       {/* Vendor routes */}
       <Route path="/vendor/login" element={<VendorLogin />} />
@@ -144,6 +155,10 @@ function AppRoutes() {
           }
         />
       </Route>
+
+      {/* Root redirects to landing page (outside SPA) */}
+      <Route path="/" element={<LandingRedirect />} />
+      <Route path="*" element={<Navigate to="/vendor" replace />} />
     </Routes>
   );
 }
@@ -152,7 +167,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppRoutes />
+        <ModalProvider>
+          <AppRoutes />
+        </ModalProvider>
       </AuthProvider>
     </BrowserRouter>
   );

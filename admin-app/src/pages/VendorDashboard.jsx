@@ -93,7 +93,7 @@ export default function VendorDashboard() {
     const [subscriptionModalOpen, setSubscriptionModalOpen] = useState(false);
 
     // Usage Tracking
-    const usage = useVendorUsage(sessions, vendorProfile?.planType === 'pro');
+    const usage = useVendorUsage(sessions, vendorProfile);
     const [loading, setLoading] = useState(false);
     const [showSignupBanner, setShowSignupBanner] = useState(true);
     // NEW: History Tab State
@@ -447,6 +447,9 @@ export default function VendorDashboard() {
                                         {vendorProfile?.planType === 'pro' && (
                                             <span className="ml-2 bg-gradient-to-r from-yellow-500 to-amber-600 text-white text-[10px] px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">PRO</span>
                                         )}
+                                        {vendorProfile?.planType === 'trial' && (
+                                            <span className="ml-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white text-[10px] px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">TRIAL</span>
+                                        )}
                                     </div>
                                     <div className="text-[10px] text-slate-400 truncate max-w-[120px]">{user?.email}</div>
                                 </div>
@@ -470,6 +473,29 @@ export default function VendorDashboard() {
             </header >
 
             <div className="max-w-6xl mx-auto p-6 space-y-6">
+                {/* Trial Banner */}
+                {vendorProfile?.planType === 'trial' && vendorProfile?.trialExpiresAt && (() => {
+                    const daysLeft = Math.max(0, Math.ceil((vendorProfile.trialExpiresAt - Date.now()) / (1000 * 60 * 60 * 24)));
+                    return (
+                        <div className="bg-gradient-to-r from-blue-900/50 to-cyan-900/30 border border-blue-500/30 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fade-in">
+                            <div className="flex items-center gap-3">
+                                <span className="text-2xl">⏳</span>
+                                <div>
+                                    <p className="font-medium text-blue-300">
+                                        Free Trial — {daysLeft} day{daysLeft !== 1 ? 's' : ''} remaining
+                                    </p>
+                                    <p className="text-sm text-slate-400">You have full Pro access. Upgrade before it ends to keep unlimited deliveries.</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => window.dispatchEvent(new CustomEvent('open-subscription-modal'))}
+                                className="shrink-0 px-4 py-2 bg-gradient-to-r from-amber-500 to-yellow-600 text-white text-sm font-bold rounded-lg hover:shadow-lg hover:shadow-amber-900/20 transition transform hover:-translate-y-0.5"
+                            >
+                                Upgrade Now
+                            </button>
+                        </div>
+                    );
+                })()}
                 {/* Guest Signup Banner */}
                 {isGuest && showSignupBanner && (
                     <div className="bg-gradient-to-r from-green-900/50 to-slate-800 border border-green-600/30 rounded-xl p-4 flex items-center justify-between">
