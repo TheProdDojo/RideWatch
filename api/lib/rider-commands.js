@@ -17,18 +17,33 @@ function normalizePhone(phone) {
 }
 
 // ─── Rider lookup by phone number ───────────────────────────────
+// Tries multiple phone formats since vendors may store numbers differently
 export async function resolveRider(phone) {
-    const ridersSnap = await adminDb.ref('riders')
-        .orderByChild('phone')
-        .equalTo(phone)
-        .limitToFirst(1)
-        .once('value');
+    // Build variants: 2348012345678 → also try 08012345678, +2348012345678
+    const variants = [phone];
+    if (phone.startsWith('234')) {
+        variants.push('0' + phone.substring(3));       // 2348012345678 → 08012345678
+        variants.push('+' + phone);                     // 2348012345678 → +2348012345678
+    } else if (phone.startsWith('0')) {
+        variants.push('234' + phone.substring(1));      // 08012345678 → 2348012345678
+        variants.push('+234' + phone.substring(1));     // 08012345678 → +2348012345678
+    }
 
-    const riders = ridersSnap.val();
-    if (!riders) return null;
+    for (const variant of variants) {
+        const ridersSnap = await adminDb.ref('riders')
+            .orderByChild('phone')
+            .equalTo(variant)
+            .limitToFirst(1)
+            .once('value');
 
-    const [riderId, rider] = Object.entries(riders)[0];
-    return { riderId, ...rider };
+        const riders = ridersSnap.val();
+        if (riders) {
+            const [riderId, rider] = Object.entries(riders)[0];
+            return { riderId, ...rider };
+        }
+    }
+
+    return null;
 }
 
 // ─── RIDER MENU ─────────────────────────────────────────────────
