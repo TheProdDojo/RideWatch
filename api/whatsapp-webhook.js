@@ -66,7 +66,7 @@ export default async function handler(request, response) {
             // Route to handler
             switch (intent) {
                 case 'MENU':
-                    await handleMenu(msg);
+                    await handleMenu(msg, vendor);
                     break;
 
                 case 'HELP':
@@ -102,7 +102,7 @@ export default async function handler(request, response) {
                     break;
 
                 case 'SKIP':
-                    await handleMenu(msg);
+                    await handleMenu(msg, vendor);
                     break;
 
                 case 'LOCATION_SHARED':

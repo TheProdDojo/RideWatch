@@ -26,7 +26,12 @@ export async function resolveVendor(phone) {
 }
 
 // ─── MENU ───────────────────────────────────────────────────────
-export async function handleMenu(msg) {
+export async function handleMenu(msg, vendor) {
+    if (!vendor) {
+        await handleOnboarding(msg);
+        return;
+    }
+
     const greeting = msg.name ? `Hey ${msg.name.split(' ')[0]}! 👋` : 'Hey there! 👋';
     await sendButtons(
         msg.from,
