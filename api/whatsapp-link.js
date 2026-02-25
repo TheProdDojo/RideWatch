@@ -11,14 +11,7 @@
  * Actually, we store pendingLinks/{code} → { phone } when the bot sends the onboarding message,
  * so the vendor dashboard just submits the code and we resolve the phone from it.
  */
-import admin from './lib/firebase-admin.js';
 import { adminDb } from './lib/firebase-admin.js';
-
-// Replicate the same hash function from commands.js
-function generateLinkCode(phone) {
-    const hash = phone.split('').reduce((a, c) => ((a << 5) - a + c.charCodeAt(0)) | 0, 0);
-    return Math.abs(hash).toString(36).substring(0, 6).toUpperCase();
-}
 
 // Security
 const ALLOWED_ORIGINS = [
@@ -59,12 +52,12 @@ export default async function handler(request, response) {
             return response.status(400).json({ error: 'Invalid or expired code. Send "hi" to the RideWatch bot on WhatsApp to get a new code.' });
         }
 
-        const { phone } = pendingSnap.val();
+        const { phone, expiresAt } = pendingSnap.val();
 
-        // Verify the code matches
-        const expectedCode = generateLinkCode(phone);
-        if (expectedCode !== code.toUpperCase()) {
-            return response.status(400).json({ error: 'Code verification failed.' });
+        // Check expiry
+        if (expiresAt && Date.now() > expiresAt) {
+            await adminDb.ref(`pendingLinks/${code.toUpperCase()}`).remove();
+            return response.status(400).json({ error: 'Code expired. Send "hi" to the bot to get a new one.' });
         }
 
         // Create the whatsappUsers mapping

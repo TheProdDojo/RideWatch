@@ -579,8 +579,12 @@ function timeAgo(ts) {
     return `${Math.floor(hours / 24)}d ago`;
 }
 
-function generateLinkCode(phone) {
-    // Simple 6-char code from phone hash — vendor dashboard will verify this
-    const hash = phone.split('').reduce((a, c) => ((a << 5) - a + c.charCodeAt(0)) | 0, 0);
-    return Math.abs(hash).toString(36).substring(0, 6).toUpperCase();
+function generateLinkCode() {
+    // Random 6-char alphanumeric code — stored in pendingLinks for verification
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I to avoid confusion
+    let code = '';
+    for (let i = 0; i < 6; i++) {
+        code += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return code;
 }
