@@ -19,8 +19,17 @@ export async function resolveCustomer(phone) {
     const sessions = sessionsSnap.val();
     if (!sessions) return null;
 
+    // #6: Filter out expired sessions (>48h old, not completed/cancelled)
+    const MAX_SESSION_AGE = 48 * 60 * 60 * 1000; // 48 hours
+    const now = Date.now();
+
     const active = Object.entries(sessions)
-        .filter(([, s]) => s.status !== 'completed' && s.status !== 'cancelled')
+        .filter(([, s]) => {
+            if (s.status === 'completed' || s.status === 'cancelled') return false;
+            // Expire sessions older than 48h that are still pending
+            if (s.createdAt && (now - s.createdAt) > MAX_SESSION_AGE && s.status === 'pending') return false;
+            return true;
+        })
         .sort((a, b) => (b[1].createdAt || 0) - (a[1].createdAt || 0));
 
     const recent = Object.entries(sessions)
@@ -204,14 +213,24 @@ export async function handleCustomerRating(msg, params) {
     if (!sessionId || !rating) return;
 
     try {
+        // #3: Check for duplicate rating
+        const sessionSnap = await adminDb.ref(`sessions/${sessionId}`).once('value');
+        const session = sessionSnap.val();
+
+        if (session?.customerRating) {
+            const existingStars = '⭐'.repeat(session.customerRating);
+            await sendText(msg.from,
+                `You've already rated this delivery ${existingStars}\n` +
+                `Thanks for your feedback! 🙏`
+            );
+            return;
+        }
+
         // Save rating
         await adminDb.ref(`sessions/${sessionId}`).update({
             customerRating: rating,
             ratedAt: Date.now(),
         });
-
-        const sessionSnap = await adminDb.ref(`sessions/${sessionId}`).once('value');
-        const session = sessionSnap.val();
 
         // Update rider's average rating
         if (session?.riderId) {

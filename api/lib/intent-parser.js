@@ -48,10 +48,44 @@ const BUTTON_MAP = {
  * @returns {{ intent: string, params: object }}
  */
 export function parseIntent(msg) {
-    // Button reply — direct mapping
+    // Button reply — check for dynamic IDs first, then static mapping
     if (msg.buttonReply) {
-        const intent = BUTTON_MAP[msg.buttonReply.id];
-        if (intent) return { intent, params: { buttonId: msg.buttonReply.id, buttonTitle: msg.buttonReply.title } };
+        const btnId = msg.buttonReply.id;
+
+        // Session-scoped rider buttons: btn_rider_action_{sessionId}
+        if (btnId.startsWith('btn_rider_pickup_')) {
+            return { intent: 'RIDER_PICKUP', params: { sessionId: btnId.replace('btn_rider_pickup_', ''), buttonId: btnId } };
+        }
+        if (btnId.startsWith('btn_rider_intransit_')) {
+            return { intent: 'RIDER_IN_TRANSIT', params: { sessionId: btnId.replace('btn_rider_intransit_', ''), buttonId: btnId } };
+        }
+        if (btnId.startsWith('btn_rider_arrived_')) {
+            return { intent: 'RIDER_ARRIVED', params: { sessionId: btnId.replace('btn_rider_arrived_', ''), buttonId: btnId } };
+        }
+        if (btnId.startsWith('btn_rider_accept_')) {
+            return { intent: 'RIDER_ACCEPT', params: { sessionId: btnId.replace('btn_rider_accept_', ''), buttonId: btnId } };
+        }
+        if (btnId.startsWith('btn_rider_reject_')) {
+            return { intent: 'RIDER_REJECT', params: { sessionId: btnId.replace('btn_rider_reject_', ''), buttonId: btnId } };
+        }
+
+        // Customer session-scoped buttons
+        if (btnId.startsWith('btn_cust_confirm_')) {
+            return { intent: 'CUSTOMER_CONFIRM', params: { sessionId: btnId.replace('btn_cust_confirm_', '') } };
+        }
+        if (btnId.startsWith('btn_cust_problem_')) {
+            return { intent: 'CUSTOMER_PROBLEM', params: { sessionId: btnId.replace('btn_cust_problem_', '') } };
+        }
+        if (btnId.startsWith('btn_rate_')) {
+            const rateMatch = btnId.match(/^btn_rate_(\d+)_(.+)$/);
+            if (rateMatch) {
+                return { intent: 'CUSTOMER_RATE', params: { rating: parseInt(rateMatch[1]), sessionId: rateMatch[2] } };
+            }
+        }
+
+        // Static button mapping
+        const intent = BUTTON_MAP[btnId];
+        if (intent) return { intent, params: { buttonId: btnId, buttonTitle: msg.buttonReply.title } };
     }
 
     // List reply — the ID encodes the intent + resource

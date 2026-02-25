@@ -121,7 +121,7 @@ async function showRiderDeliveryDetails(to, sessionId, session) {
 
 // ─── RIDER ACCEPTS ASSIGNMENT ───────────────────────────────────
 export async function handleRiderAccept(msg, params, rider) {
-    const sessionId = params.sessionId || params.buttonId?.replace('btn_rider_accept_', '');
+    const sessionId = params.sessionId || await getActiveSession(msg.from);
     if (!sessionId) {
         await handleRiderMenu(msg, rider);
         return;
@@ -158,8 +158,8 @@ export async function handleRiderAccept(msg, params, rider) {
         );
 
         await sendButtons(msg.from, `Update delivery status:`, [
-            { id: `btn_rider_pickup`, title: '📤 Picked Up' },
-            { id: `btn_rider_reject`, title: '❌ Can\'t Do This' },
+            { id: `btn_rider_pickup_${sessionId}`, title: '📤 Picked Up' },
+            { id: `btn_rider_reject_${sessionId}`, title: '❌ Can\'t Do This' },
         ]);
 
         // Store active session for context
@@ -286,17 +286,45 @@ export async function handleRiderStopCode(msg, params, rider) {
     }
 
     try {
+        // #2: Check if locked out from too many wrong attempts
+        const lockedSnap = await adminDb.ref(`riderContext/${msg.from}/stopCodeLockedUntil`).once('value');
+        const lockedUntil = lockedSnap.val();
+        if (lockedUntil && Date.now() < lockedUntil) {
+            const minsLeft = Math.ceil((lockedUntil - Date.now()) / 60000);
+            await sendText(msg.from, `🔒 Stop code entry is locked. Try again in ${minsLeft} min.`);
+            return;
+        }
+
         const sessionSnap = await adminDb.ref(`sessions/${sessionId}`).once('value');
         const session = sessionSnap.val();
         if (!session) return;
 
         if (session.stopCode !== params.stopCode) {
+            // #2: Track failed attempts
+            const attemptsRef = adminDb.ref(`riderContext/${msg.from}/stopCodeAttempts`);
+            const attemptsSnap = await attemptsRef.once('value');
+            const attempts = (attemptsSnap.val() || 0) + 1;
+            await attemptsRef.set(attempts);
+
+            if (attempts >= 5) {
+                await sendText(msg.from,
+                    `🔒 Too many wrong attempts. Stop code entry locked for 15 minutes.\n` +
+                    `Contact the vendor if you need help.`
+                );
+                await adminDb.ref(`riderContext/${msg.from}/stopCodeLockedUntil`).set(Date.now() + 15 * 60 * 1000);
+                await attemptsRef.set(0);
+                return;
+            }
+
             await sendText(msg.from,
-                `❌ Wrong stop code. Ask the customer for the correct 4-digit code.\n` +
-                `_Hint: It was sent to the customer in their tracking link._`
+                `❌ Wrong stop code (${attempts}/5 attempts).\n` +
+                `Ask the customer for the correct 4-digit code.`
             );
             return;
         }
+
+        // Reset attempts on success
+        await adminDb.ref(`riderContext/${msg.from}/stopCodeAttempts`).remove();
 
         // Mark delivery as completed!
         const updates = {};
@@ -392,8 +420,8 @@ export async function notifyRiderAssignment(riderPhone, session, sessionId) {
         await sendButtons(riderPhone,
             `Accept this delivery?`,
             [
-                { id: `btn_rider_accept`, title: '✅ Accept' },
-                { id: `btn_rider_reject`, title: '❌ Decline' },
+                { id: `btn_rider_accept_${sessionId}`, title: '✅ Accept' },
+                { id: `btn_rider_reject_${sessionId}`, title: '❌ Decline' },
             ]
         );
 
@@ -417,23 +445,23 @@ function getNextStatusButtons(status, sessionId) {
     switch (status) {
         case 'assigned':
             return [
-                { id: 'btn_rider_accept', title: '✅ Accept' },
-                { id: 'btn_rider_reject', title: '❌ Decline' },
+                { id: `btn_rider_accept_${sessionId}`, title: '✅ Accept' },
+                { id: `btn_rider_reject_${sessionId}`, title: '❌ Decline' },
             ];
         case 'active':
             return [
-                { id: 'btn_rider_pickup', title: '📤 Picked Up' },
+                { id: `btn_rider_pickup_${sessionId}`, title: '📤 Picked Up' },
             ];
         case 'picked_up':
             return [
-                { id: 'btn_rider_intransit', title: '🚚 In Transit' },
+                { id: `btn_rider_intransit_${sessionId}`, title: '🚚 In Transit' },
             ];
         case 'in_transit':
             return [
-                { id: 'btn_rider_arrived', title: '📍 Arrived' },
+                { id: `btn_rider_arrived_${sessionId}`, title: '📍 Arrived' },
             ];
         case 'arrived':
-            return []; // Rider needs to enter stop code — no button
+            return []; // Rider enters stop code via text
         default:
             return [];
     }
