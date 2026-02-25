@@ -6,6 +6,7 @@
  */
 import { sendText, sendButtons, sendList } from './whatsapp.js';
 import { adminDb } from './firebase-admin.js';
+import { notifyCustomerStatusChange } from './customer-commands.js';
 
 // Phone normalization (duplicated from commands.js to avoid circular import)
 function normalizePhone(phone) {
@@ -169,6 +170,9 @@ export async function handleRiderAccept(msg, params, rider) {
             `🛵 *${rider.name || 'Your rider'}* accepted delivery #${session.refId}!`
         );
 
+        // Notify customer
+        await notifyCustomerStatusChange({ ...session, riderName: rider.name || session.riderName }, sessionId, 'active');
+
     } catch (err) {
         console.error('[RIDER] accept error:', err);
         await sendText(msg.from, `❌ Failed to accept. Try again.`);
@@ -263,6 +267,9 @@ export async function handleRiderStatusUpdate(msg, params, rider, newStatus) {
         await notifyVendor(session.vendorId, session,
             `${statusEmoji(newStatus)} Delivery #${session.refId} is now *${statusLabels[newStatus]}*\n🛵 Rider: ${rider.name || 'Rider'}`
         );
+
+        // Notify customer of status change
+        await notifyCustomerStatusChange({ ...session, riderName: rider.name || session.riderName }, sessionId, newStatus);
 
     } catch (err) {
         console.error('[RIDER] statusUpdate error:', err);

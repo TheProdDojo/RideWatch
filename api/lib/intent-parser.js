@@ -80,6 +80,21 @@ export function parseIntent(msg) {
             return { intent: 'RIDER_VIEW_DELIVERY', params: { sessionId: id.replace('rider_status_', '') } };
         }
 
+        // Customer-specific list/button replies
+        if (id.startsWith('btn_cust_confirm_')) {
+            return { intent: 'CUSTOMER_CONFIRM', params: { sessionId: id.replace('btn_cust_confirm_', '') } };
+        }
+        if (id.startsWith('btn_cust_problem_')) {
+            return { intent: 'CUSTOMER_PROBLEM', params: { sessionId: id.replace('btn_cust_problem_', '') } };
+        }
+        if (id.startsWith('btn_rate_')) {
+            // Format: btn_rate_{rating}_{sessionId}
+            const rateMatch = id.match(/^btn_rate_(\d+)_(.+)$/);
+            if (rateMatch) {
+                return { intent: 'CUSTOMER_RATE', params: { rating: parseInt(rateMatch[1]), sessionId: rateMatch[2] } };
+            }
+        }
+
         return { intent: 'UNKNOWN', params: { listReply: msg.listReply } };
     }
 

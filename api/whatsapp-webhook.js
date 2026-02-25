@@ -30,6 +30,13 @@ import {
     handleRiderStopCode,
     handleRiderViewDelivery,
 } from './lib/rider-commands.js';
+import {
+    resolveCustomer,
+    handleCustomerStatus,
+    handleCustomerConfirm,
+    handleCustomerProblem,
+    handleCustomerRating,
+} from './lib/customer-commands.js';
 
 // ── #1: Message deduplication (in-memory, per-instance) ──
 const processedMessages = new Map();
@@ -98,15 +105,31 @@ export default async function handler(request, response) {
             // If not a vendor, check if they're a rider
             const rider = !vendor ? await resolveRider(msg.from) : null;
 
-            // #5: If neither vendor nor rider, check if customer
-            if (!vendor && !rider) {
-                const isCustomer = await checkIfCustomer(msg);
-                if (isCustomer) return response.status(200).json({ status: 'ok' });
-            }
+            // If neither vendor nor rider, check if customer
+            const customer = (!vendor && !rider) ? await resolveCustomer(msg.from) : null;
 
             // Parse intent
             const { intent, params } = parseIntent(msg);
-            console.log(`[WA] ${msg.from} → ${intent} [${vendor ? 'vendor' : rider ? 'rider' : 'unknown'}]`, JSON.stringify(params));
+            console.log(`[WA] ${msg.from} → ${intent} [${vendor ? 'vendor' : rider ? 'rider' : customer ? 'customer' : 'unknown'}]`, JSON.stringify(params));
+
+            // ── CUSTOMER ROUTING ──
+            if (customer) {
+                switch (intent) {
+                    case 'CUSTOMER_CONFIRM':
+                        await handleCustomerConfirm(msg, params);
+                        break;
+                    case 'CUSTOMER_PROBLEM':
+                        await handleCustomerProblem(msg, params);
+                        break;
+                    case 'CUSTOMER_RATE':
+                        await handleCustomerRating(msg, params);
+                        break;
+                    default:
+                        // Any other message from a customer = show their delivery status
+                        await handleCustomerStatus(msg, customer);
+                }
+                return response.status(200).json({ status: 'ok' });
+            }
 
             // ── RIDER ROUTING ──
             if (rider) {
@@ -237,38 +260,3 @@ export default async function handler(request, response) {
     return response.status(405).json({ error: 'Method not allowed' });
 }
 
-// #5: Handle customer messages — provide tracking info instead of onboarding
-async function checkIfCustomer(msg) {
-    try {
-        // Check if this phone has any deliveries as a customer
-        const sessionsSnap = await adminDb.ref('sessions')
-            .orderByChild('customerPhone')
-            .equalTo(msg.from)
-            .limitToLast(1)
-            .once('value');
-
-        const sessions = sessionsSnap.val();
-        if (!sessions) return false;
-
-        const [sessionId, session] = Object.entries(sessions)[0];
-        const trackingLink = `https://ridewatchapp.com/t/${sessionId}`;
-
-        await sendText(msg.from,
-            `📦 Hi${session.customerName ? ' ' + session.customerName : ''}!\n\n` +
-            `Your latest delivery from *${session.vendorName || 'your vendor'}*:\n` +
-            `${statusEmoji(session.status)} Status: *${session.status?.toUpperCase()}*\n` +
-            (session.riderName ? `🛵 Rider: ${session.riderName}\n` : '') +
-            `📍 Track live: ${trackingLink}\n\n` +
-            `_Reply with your delivery ref # for a specific order._`
-        );
-        return true;
-    } catch (err) {
-        console.error('[WA] Customer check error:', err);
-        return false;
-    }
-}
-
-function statusEmoji(status) {
-    const map = { pending: '⏳', assigned: '📋', active: '🚚', in_transit: '🚚', completed: '✅', cancelled: '❌' };
-    return map[status] || '❓';
-}
