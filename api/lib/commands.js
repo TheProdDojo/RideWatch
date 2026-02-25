@@ -6,6 +6,7 @@
  */
 import { sendText, sendButtons, sendList } from './whatsapp.js';
 import { adminDb } from './firebase-admin.js';
+import { notifyRiderAssignment } from './rider-commands.js';
 
 // #8: Phone normalization utility
 export function normalizePhone(phone) {
@@ -256,6 +257,12 @@ export async function handleAssignRider(msg, params, vendor) {
             `🛵 ${rider.name} has been assigned.\n` +
             `📱 Rider phone: ${rider.phone || 'N/A'}`
         );
+
+        // Notify rider via WhatsApp
+        if (rider.phone) {
+            const riderPhone = normalizePhone(rider.phone);
+            await notifyRiderAssignment(riderPhone, session, sessionId);
+        }
 
         // Ask if they want to notify the customer
         if (session.customerPhone) {

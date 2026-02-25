@@ -21,6 +21,15 @@ import {
     handleOnboarding,
     handleUnknown,
 } from './lib/commands.js';
+import {
+    resolveRider,
+    handleRiderMenu,
+    handleRiderAccept,
+    handleRiderReject,
+    handleRiderStatusUpdate,
+    handleRiderStopCode,
+    handleRiderViewDelivery,
+} from './lib/rider-commands.js';
 
 // ── #1: Message deduplication (in-memory, per-instance) ──
 const processedMessages = new Map();
@@ -86,15 +95,65 @@ export default async function handler(request, response) {
             // Resolve vendor by phone number
             const vendor = await resolveVendor(msg.from);
 
-            // #5: Customer message detection — if not a vendor, check if they're a known customer
-            if (!vendor) {
+            // If not a vendor, check if they're a rider
+            const rider = !vendor ? await resolveRider(msg.from) : null;
+
+            // #5: If neither vendor nor rider, check if customer
+            if (!vendor && !rider) {
                 const isCustomer = await checkIfCustomer(msg);
                 if (isCustomer) return response.status(200).json({ status: 'ok' });
             }
 
             // Parse intent
             const { intent, params } = parseIntent(msg);
-            console.log(`[WA] ${msg.from} → ${intent}`, JSON.stringify(params));
+            console.log(`[WA] ${msg.from} → ${intent} [${vendor ? 'vendor' : rider ? 'rider' : 'unknown'}]`, JSON.stringify(params));
+
+            // ── RIDER ROUTING ──
+            if (rider) {
+                switch (intent) {
+                    case 'MENU':
+                    case 'RIDER_MY_DELIVERIES':
+                        await handleRiderMenu(msg, rider);
+                        break;
+                    case 'RIDER_ACCEPT':
+                        await handleRiderAccept(msg, params, rider);
+                        break;
+                    case 'RIDER_REJECT':
+                        await handleRiderReject(msg, params, rider);
+                        break;
+                    case 'RIDER_PICKUP':
+                        await handleRiderStatusUpdate(msg, params, rider, 'picked_up');
+                        break;
+                    case 'RIDER_IN_TRANSIT':
+                        await handleRiderStatusUpdate(msg, params, rider, 'in_transit');
+                        break;
+                    case 'RIDER_ARRIVED':
+                        await handleRiderStatusUpdate(msg, params, rider, 'arrived');
+                        break;
+                    case 'RIDER_STOP_CODE':
+                        await handleRiderStopCode(msg, params, rider);
+                        break;
+                    case 'RIDER_VIEW_DELIVERY':
+                        await handleRiderViewDelivery(msg, params, rider);
+                        break;
+                    case 'HELP':
+                        await sendText(msg.from,
+                            `🛵 *Rider Commands*\n` +
+                            `━━━━━━━━━━━━━━━\n` +
+                            `📋 *"menu"* — Your active deliveries\n` +
+                            `✅ Tap *Accept/Decline* on assignments\n` +
+                            `📤 Update status with buttons\n` +
+                            `🔑 Enter the *4-digit stop code* to complete\n` +
+                            `━━━━━━━━━━━━━━━`
+                        );
+                        break;
+                    default:
+                        await handleRiderMenu(msg, rider);
+                }
+                return response.status(200).json({ status: 'ok' });
+            }
+
+            // ── VENDOR ROUTING ──
 
             // Route to handler
             switch (intent) {

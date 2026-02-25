@@ -33,6 +33,13 @@ const BUTTON_MAP = {
     'btn_skip': 'SKIP',
     'btn_send_customer': 'SEND_TO_CUSTOMER',
     'btn_send_rider': 'SEND_TO_RIDER',
+    // Rider-specific buttons
+    'btn_rider_accept': 'RIDER_ACCEPT',
+    'btn_rider_reject': 'RIDER_REJECT',
+    'btn_rider_pickup': 'RIDER_PICKUP',
+    'btn_rider_intransit': 'RIDER_IN_TRANSIT',
+    'btn_rider_arrived': 'RIDER_ARRIVED',
+    'btn_rider_deliveries': 'RIDER_MY_DELIVERIES',
 };
 
 /**
@@ -60,6 +67,17 @@ export function parseIntent(msg) {
         }
         if (id.startsWith('cancel_')) {
             return { intent: 'CANCEL_DELIVERY', params: { sessionId: id.replace('cancel_', '') } };
+        }
+
+        // Rider-specific list replies
+        if (id.startsWith('rider_accept_')) {
+            return { intent: 'RIDER_ACCEPT', params: { sessionId: id.replace('rider_accept_', '') } };
+        }
+        if (id.startsWith('rider_reject_')) {
+            return { intent: 'RIDER_REJECT', params: { sessionId: id.replace('rider_reject_', '') } };
+        }
+        if (id.startsWith('rider_status_')) {
+            return { intent: 'RIDER_VIEW_DELIVERY', params: { sessionId: id.replace('rider_status_', '') } };
         }
 
         return { intent: 'UNKNOWN', params: { listReply: msg.listReply } };
@@ -116,6 +134,11 @@ export function parseIntent(msg) {
             intent: 'CHECK_STATUS',
             params: { refId: statusMatch[1], rawText: text },
         };
+    }
+
+    // Rider: stop code entry (4-digit number)
+    if (text.match(/^\d{4}$/)) {
+        return { intent: 'RIDER_STOP_CODE', params: { stopCode: text } };
     }
 
     // Nothing matched — treat as unknown
