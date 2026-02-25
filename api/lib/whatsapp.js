@@ -3,7 +3,7 @@
  * Handles sending text, interactive buttons, lists, and location messages.
  */
 
-const WHATSAPP_API_VERSION = 'v21.0';
+const WHATSAPP_API_VERSION = 'v22.0';
 
 function getApiUrl() {
     const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
