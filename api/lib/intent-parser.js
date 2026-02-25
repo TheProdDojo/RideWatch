@@ -77,6 +77,12 @@ export function parseIntent(msg) {
         };
     }
 
+    // #12: Media messages (image, audio, video, document, sticker)
+    const mediaTypes = ['image', 'audio', 'video', 'document', 'sticker'];
+    if (mediaTypes.includes(msg.type)) {
+        return { intent: 'MEDIA_RECEIVED', params: { mediaType: msg.type } };
+    }
+
     // Free text — keyword matching
     const text = (msg.text || '').trim();
     if (!text) return { intent: 'UNKNOWN', params: {} };

@@ -7,6 +7,16 @@
 import { sendText, sendButtons, sendList } from './whatsapp.js';
 import { adminDb } from './firebase-admin.js';
 
+// #8: Phone normalization utility
+export function normalizePhone(phone) {
+    if (!phone) return '';
+    let p = phone.replace(/[\s\-()]/g, '');
+    if (p.startsWith('+')) p = p.substring(1);
+    // Nigerian numbers: 08x → 2348x
+    if (p.match(/^0[789]\d{9}$/)) p = '234' + p.substring(1);
+    return p;
+}
+
 // ─── Vendor lookup by phone number ──────────────────────────────
 // We store a mapping: whatsappUsers/{normalizedPhone} → { vendorId, role }
 // This is set during onboarding / first connection.
@@ -95,13 +105,8 @@ async function executeCreateDelivery(from, vendor, details) {
         const stopCode = Math.floor(1000 + Math.random() * 9000).toString();
         const refId = 'ORD-' + Math.floor(1000 + Math.random() * 9000);
 
-        // Normalize customer phone
-        let customerPhone = details.customerPhone.replace(/\s/g, '');
-        if (customerPhone.startsWith('0')) {
-            customerPhone = '234' + customerPhone.substring(1);
-        } else if (customerPhone.startsWith('+')) {
-            customerPhone = customerPhone.substring(1);
-        }
+        // Normalize customer phone using utility
+        let customerPhone = normalizePhone(details.customerPhone);
 
         const session = {
             refId,
@@ -129,6 +134,10 @@ async function executeCreateDelivery(from, vendor, details) {
             vendorId: vendor.vendorId,
             createdAt: Date.now(),
         });
+
+        // #6: Clean stale context before setting new
+        await adminDb.ref(`whatsappUsers/${from}/pendingSession`).remove();
+        await adminDb.ref(`whatsappUsers/${from}/pendingNotify`).remove();
 
         const trackingLink = `https://ridewatchapp.com/t/${sessionId}`;
 
@@ -207,6 +216,19 @@ export async function handleAssignRider(msg, params, vendor) {
     const sessionId = fullId.substring(sessIdx + 1); // includes 'sess_...'
 
     try {
+        // #7: Validate session still exists and is actionable
+        const sessionSnap = await adminDb.ref(`sessions/${sessionId}`).once('value');
+        const session = sessionSnap.val();
+        if (!session) {
+            await sendText(msg.from, `❌ This delivery no longer exists. It may have been cancelled or completed.`);
+            return;
+        }
+        if (session.status === 'completed' || session.status === 'cancelled') {
+            await sendText(msg.from, `❌ This delivery is already *${session.status}*. Start a new delivery instead.`);
+            await sendButtons(msg.from, 'What next?', [{ id: 'btn_new_delivery', title: '📦 New Delivery' }, { id: 'btn_menu', title: '🏠 Menu' }]);
+            return;
+        }
+
         // Get rider info
         const riderSnap = await adminDb.ref(`riders/${riderId}`).once('value');
         const rider = riderSnap.val();
@@ -215,21 +237,17 @@ export async function handleAssignRider(msg, params, vendor) {
             return;
         }
 
-        // Update session with rider
-        await adminDb.ref(`sessions/${sessionId}`).update({
-            riderId,
-            riderName: rider.name || '',
-            riderPhone: rider.phone || '',
-            status: 'assigned',
-        });
-
-        // Also update vendor's copy
-        await adminDb.ref(`vendors/${vendor.vendorId}/sessions/${sessionId}`).update({
-            riderId,
-            riderName: rider.name || '',
-            riderPhone: rider.phone || '',
-            status: 'assigned',
-        });
+        // #11: Use transaction for concurrent-safe rider assignment
+        const updates = {};
+        updates[`sessions/${sessionId}/riderId`] = riderId;
+        updates[`sessions/${sessionId}/riderName`] = rider.name || '';
+        updates[`sessions/${sessionId}/riderPhone`] = rider.phone || '';
+        updates[`sessions/${sessionId}/status`] = 'assigned';
+        updates[`vendors/${vendor.vendorId}/sessions/${sessionId}/riderId`] = riderId;
+        updates[`vendors/${vendor.vendorId}/sessions/${sessionId}/riderName`] = rider.name || '';
+        updates[`vendors/${vendor.vendorId}/sessions/${sessionId}/riderPhone`] = rider.phone || '';
+        updates[`vendors/${vendor.vendorId}/sessions/${sessionId}/status`] = 'assigned';
+        await adminDb.ref().update(updates);
 
         const trackingLink = `https://ridewatchapp.com/t/${sessionId}`;
 
@@ -240,10 +258,7 @@ export async function handleAssignRider(msg, params, vendor) {
         );
 
         // Ask if they want to notify the customer
-        const sessionSnap = await adminDb.ref(`sessions/${sessionId}`).once('value');
-        const session = sessionSnap.val();
-
-        if (session?.customerPhone) {
+        if (session.customerPhone) {
             await sendButtons(msg.from,
                 `📲 Send tracking link to the customer (${session.customerName || session.customerPhone})?`,
                 [

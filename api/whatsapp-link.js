@@ -60,6 +60,21 @@ export default async function handler(request, response) {
             return response.status(400).json({ error: 'Code expired. Send "hi" to the bot to get a new one.' });
         }
 
+        // #2: Prevent duplicate linking — check if phone is already linked to another vendor
+        const existingLink = await adminDb.ref(`whatsappUsers/${phone}`).once('value');
+        if (existingLink.exists() && existingLink.val().vendorId !== vendorId) {
+            return response.status(409).json({
+                error: 'This WhatsApp number is already linked to another vendor account. Disconnect it there first.'
+            });
+        }
+
+        // #2: Check if this vendor already has a different WhatsApp number linked
+        const vendorData = vendorSnap.val();
+        if (vendorData?.whatsappPhone && vendorData.whatsappPhone !== phone) {
+            // Remove old mapping
+            await adminDb.ref(`whatsappUsers/${vendorData.whatsappPhone}`).remove();
+        }
+
         // Create the whatsappUsers mapping
         await adminDb.ref(`whatsappUsers/${phone}`).set({
             vendorId,

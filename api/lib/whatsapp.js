@@ -21,6 +21,27 @@ function getHeaders() {
  * Send a plain text message.
  */
 export async function sendText(to, body) {
+    // #10: WhatsApp has a 4096 char limit — chunk long messages
+    if (body.length > 4000) {
+        const chunks = [];
+        let remaining = body;
+        while (remaining.length > 0) {
+            // Try to split at a newline near the limit
+            let splitAt = remaining.lastIndexOf('\n', 3900);
+            if (splitAt < 2000) splitAt = 3900;
+            chunks.push(remaining.substring(0, splitAt));
+            remaining = remaining.substring(splitAt).trimStart();
+        }
+        let lastData;
+        for (const chunk of chunks) {
+            lastData = await sendTextRaw(to, chunk);
+        }
+        return lastData;
+    }
+    return sendTextRaw(to, body);
+}
+
+async function sendTextRaw(to, body) {
     const res = await fetch(getApiUrl(), {
         method: 'POST',
         headers: getHeaders(),
@@ -177,9 +198,20 @@ export function extractMessage(body) {
                     address: msg.location.address || '',
                 };
                 break;
+            case 'image':
+            case 'audio':
+            case 'video':
+            case 'document':
+            case 'sticker':
+                result.mediaType = msg.type;
+                break;
             default:
                 result.text = '';
         }
+
+        // #13: Flag group messages (group IDs contain a hyphen)
+        result.isGroup = msg.from?.includes('-') || (value.metadata?.display_phone_number !== msg.from && msg.group_id != null);
+
 
         return result;
     } catch (err) {

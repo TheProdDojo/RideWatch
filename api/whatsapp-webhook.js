@@ -4,8 +4,9 @@
  * GET  /api/whatsapp-webhook  → Meta verification challenge
  * POST /api/whatsapp-webhook  → Incoming message processing
  */
-import { extractMessage, markRead } from './lib/whatsapp.js';
+import { extractMessage, markRead, sendText } from './lib/whatsapp.js';
 import { parseIntent } from './lib/intent-parser.js';
+import { adminDb } from './lib/firebase-admin.js';
 import {
     resolveVendor,
     handleMenu,
@@ -20,6 +21,21 @@ import {
     handleOnboarding,
     handleUnknown,
 } from './lib/commands.js';
+
+// ── #1: Message deduplication (in-memory, per-instance) ──
+const processedMessages = new Map();
+const DEDUP_TTL_MS = 60 * 1000; // 60 seconds
+
+function isDuplicate(messageId) {
+    const now = Date.now();
+    // Clean expired entries
+    for (const [id, ts] of processedMessages) {
+        if (now - ts > DEDUP_TTL_MS) processedMessages.delete(id);
+    }
+    if (processedMessages.has(messageId)) return true;
+    processedMessages.set(messageId, now);
+    return false;
+}
 
 export default async function handler(request, response) {
     // ── GET: Meta Webhook Verification ──
@@ -52,12 +68,29 @@ export default async function handler(request, response) {
             return response.status(200).json({ status: 'ok' });
         }
 
+        // #1: Dedup — skip if we've already processed this message
+        if (isDuplicate(msg.messageId)) {
+            console.log(`[WA] Duplicate message ${msg.messageId}, skipping`);
+            return response.status(200).json({ status: 'ok' });
+        }
+
+        // #13: Group message filter — ignore messages from groups
+        if (msg.from?.includes('-') || msg.isGroup) {
+            return response.status(200).json({ status: 'ok' });
+        }
+
         try {
             // Mark message as read (blue ticks)
             await markRead(msg.messageId);
 
             // Resolve vendor by phone number
             const vendor = await resolveVendor(msg.from);
+
+            // #5: Customer message detection — if not a vendor, check if they're a known customer
+            if (!vendor) {
+                const isCustomer = await checkIfCustomer(msg);
+                if (isCustomer) return response.status(200).json({ status: 'ok' });
+            }
 
             // Parse intent
             const { intent, params } = parseIntent(msg);
@@ -107,16 +140,24 @@ export default async function handler(request, response) {
 
                 case 'LOCATION_SHARED':
                     // Phase 5: Live location tracking
-                    // For now, acknowledge the location
                     if (vendor) {
-                        // Could be for creating a delivery with pickup location
-                        const { sendText } = await import('./lib/whatsapp.js');
                         await sendText(msg.from,
                             `📍 Location received!\n` +
                             `${params.address || `${params.latitude}, ${params.longitude}`}\n\n` +
                             `_Live location tracking for riders coming soon!_`
                         );
                     }
+                    break;
+
+                case 'MEDIA_RECEIVED':
+                    // #12: Respond helpfully to media messages
+                    await sendText(msg.from,
+                        `📎 Got your ${params.mediaType || 'file'}!\n\n` +
+                        `I can't process media yet, but I can help with:\n` +
+                        `📦 *\"new delivery\"* — Create a delivery\n` +
+                        `🔍 *\"status\"* — Check a delivery\n` +
+                        `Or type *\"menu\"* for all options.`
+                    );
                     break;
 
                 default:
@@ -135,4 +176,40 @@ export default async function handler(request, response) {
 
     // Other methods
     return response.status(405).json({ error: 'Method not allowed' });
+}
+
+// #5: Handle customer messages — provide tracking info instead of onboarding
+async function checkIfCustomer(msg) {
+    try {
+        // Check if this phone has any deliveries as a customer
+        const sessionsSnap = await adminDb.ref('sessions')
+            .orderByChild('customerPhone')
+            .equalTo(msg.from)
+            .limitToLast(1)
+            .once('value');
+
+        const sessions = sessionsSnap.val();
+        if (!sessions) return false;
+
+        const [sessionId, session] = Object.entries(sessions)[0];
+        const trackingLink = `https://ridewatchapp.com/t/${sessionId}`;
+
+        await sendText(msg.from,
+            `📦 Hi${session.customerName ? ' ' + session.customerName : ''}!\n\n` +
+            `Your latest delivery from *${session.vendorName || 'your vendor'}*:\n` +
+            `${statusEmoji(session.status)} Status: *${session.status?.toUpperCase()}*\n` +
+            (session.riderName ? `🛵 Rider: ${session.riderName}\n` : '') +
+            `📍 Track live: ${trackingLink}\n\n` +
+            `_Reply with your delivery ref # for a specific order._`
+        );
+        return true;
+    } catch (err) {
+        console.error('[WA] Customer check error:', err);
+        return false;
+    }
+}
+
+function statusEmoji(status) {
+    const map = { pending: '⏳', assigned: '📋', active: '🚚', in_transit: '🚚', completed: '✅', cancelled: '❌' };
+    return map[status] || '❓';
 }
