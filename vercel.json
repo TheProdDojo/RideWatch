@@ -27,6 +27,10 @@
     {
       "source": "/admin/:path*",
       "destination": "/admin-app/dist/index.html"
+    },
+    {
+      "source": "/guide",
+      "destination": "/admin-app/dist/index.html"
     }
   ],
   "headers": [
