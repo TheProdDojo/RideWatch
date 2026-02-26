@@ -59,6 +59,63 @@ async function sendTextRaw(to, body) {
 }
 
 /**
+ * Send a template message (required to initiate conversations outside 24hr window).
+ * @param {string} to - Recipient phone number
+ * @param {string} templateName - Approved template name from Meta Business Manager
+ * @param {string} languageCode - Template language code (e.g., 'en_US', 'en')
+ * @param {Array} components - Template components (header, body, button parameters)
+ */
+export async function sendTemplate(to, templateName, languageCode = 'en', components = []) {
+    const message = {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to,
+        type: 'template',
+        template: {
+            name: templateName,
+            language: { code: languageCode },
+        },
+    };
+
+    if (components.length > 0) {
+        message.template.components = components;
+    }
+
+    const res = await fetch(getApiUrl(), {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(message),
+    });
+    const data = await res.json();
+    if (!res.ok) console.error('[WA] sendTemplate error:', JSON.stringify(data));
+    return data;
+}
+
+/**
+ * Send a text message, falling back to a template if outside the 24hr messaging window.
+ * Error code 131047 = "Re-engagement message" = user hasn't messaged in 24hrs.
+ */
+export async function sendTextWithFallback(to, body, templateName = null, templateLang = 'en', templateComponents = []) {
+    const data = await sendTextRaw(to, body);
+
+    // Check if the error is due to 24hr window restriction
+    const errorCode = data?.error?.code;
+    const errorSubCode = data?.error?.error_subcode;
+
+    if (data?.error && (errorCode === 131047 || errorSubCode === 131047 ||
+        errorCode === 131026 || errorSubCode === 131026)) {
+        console.log(`[WA] Outside 24hr window for ${to}, attempting template fallback...`);
+
+        if (templateName) {
+            return sendTemplate(to, templateName, templateLang, templateComponents);
+        }
+        console.log(`[WA] No template provided for fallback to ${to}`);
+    }
+
+    return data;
+}
+
+/**
  * Send interactive buttons (max 3 buttons).
  * buttons: [{ id: 'btn_1', title: 'Yes' }, ...]
  */

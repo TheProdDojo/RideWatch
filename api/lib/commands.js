@@ -4,7 +4,7 @@
  *
  * ctx = { db (Firebase Admin database ref), from (phone), vendorId, vendorProfile }
  */
-import { sendText, sendButtons, sendList } from './whatsapp.js';
+import { sendText, sendButtons, sendList, sendTemplate } from './whatsapp.js';
 import { adminDb } from './firebase-admin.js';
 import { notifyRiderAssignment } from './rider-commands.js';
 
@@ -303,14 +303,60 @@ export async function handleSendToCustomer(msg, _params, vendor) {
             return;
         }
 
-        // Send tracking info to customer
-        await sendText(ctx.customerPhone,
-            `📦 *${vendor.profile?.businessName || 'Your Vendor'}*\n\n` +
-            `Hi${ctx.customerName ? ' ' + ctx.customerName : ''}! Your delivery *#${ctx.refId}* is on the way.\n` +
+        const businessName = vendor.profile?.businessName || 'Your Vendor';
+        const customerName = ctx.customerName || 'there';
+        const trackingMessage =
+            `📦 *${businessName}*\n\n` +
+            `Hi ${customerName}! Your delivery *#${ctx.refId}* is on the way.\n` +
             `🛵 Rider: ${ctx.riderName}\n\n` +
             `📍 Track live: ${ctx.trackingLink}\n\n` +
-            `_Powered by RideWatch_`
+            `_Powered by RideWatch_`;
+
+        // Try sending as a regular text message first
+        const result = await sendText(ctx.customerPhone, trackingMessage);
+
+        // Check if it failed due to 24hr messaging window restriction
+        const errorCode = result?.error?.code;
+        const errorSubCode = result?.error?.error_subcode;
+        const isWindowError = result?.error && (
+            errorCode === 131047 || errorSubCode === 131047 ||
+            errorCode === 131026 || errorSubCode === 131026
         );
+
+        if (isWindowError) {
+            console.log(`[CMD] Outside 24hr window for ${ctx.customerPhone}, using template...`);
+
+            // Fall back to the approved template message
+            const templateResult = await sendTemplate(ctx.customerPhone, 'delivery_update', 'en', [
+                {
+                    type: 'body',
+                    parameters: [
+                        { type: 'text', text: customerName },
+                        { type: 'text', text: ctx.refId },
+                        { type: 'text', text: ctx.riderName || 'your rider' },
+                        { type: 'text', text: ctx.trackingLink },
+                    ],
+                },
+            ]);
+
+            if (templateResult?.error) {
+                console.error('[CMD] Template also failed:', JSON.stringify(templateResult));
+                await sendText(msg.from,
+                    `⚠️ Could not reach ${ctx.customerName || ctx.customerPhone} on WhatsApp.\n\n` +
+                    `This happens when the customer hasn't messaged RideWatch Bot before.\n\n` +
+                    `📋 Share this link manually:\n${ctx.trackingLink}`
+                );
+                return;
+            }
+        } else if (result?.error) {
+            // Some other error
+            console.error('[CMD] sendToCustomer unexpected error:', JSON.stringify(result));
+            await sendText(msg.from,
+                `⚠️ Could not send to ${ctx.customerName || ctx.customerPhone}.\n\n` +
+                `📋 Share this link manually:\n${ctx.trackingLink}`
+            );
+            return;
+        }
 
         await sendText(msg.from, `✅ Tracking link sent to ${ctx.customerName || ctx.customerPhone}!`);
 
