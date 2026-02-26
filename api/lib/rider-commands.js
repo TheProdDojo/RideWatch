@@ -148,12 +148,17 @@ export async function handleRiderAccept(msg, params, rider) {
             ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(session.destination)}`
             : null;
 
+        const beaconLink = `https://ridewatchapp.com/rider.html?session=${sessionId}`;
+
         await sendText(msg.from,
             `✅ *Assignment Accepted!*\n\n` +
             `📦 #${session.refId}\n` +
             `📍 ${session.destination}\n` +
             `👤 ${session.customerName || 'Customer'}: ${session.customerPhone || ''}\n` +
             (mapsLink ? `🗺️ Navigate: ${mapsLink}\n\n` : '\n') +
+            `📡 *Start Live Tracking:*\n` +
+            `🔗 ${beaconLink}\n\n` +
+            `_Open the link above to enable GPS tracking for the customer._\n\n` +
             `When you've picked up the package, tap *"Picked Up"* below.`
         );
 

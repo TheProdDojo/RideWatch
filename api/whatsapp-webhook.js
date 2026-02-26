@@ -159,6 +159,26 @@ export default async function handler(request, response) {
                     case 'RIDER_VIEW_DELIVERY':
                         await handleRiderViewDelivery(msg, params, rider);
                         break;
+                    case 'LOCATION_SHARED': {
+                        // Rider shared location → send them the Rider Beacon link
+                        const riderSessionSnap = await adminDb.ref(`riderContext/${msg.from}/activeSession`).once('value');
+                        const riderSessionId = riderSessionSnap.val();
+                        if (riderSessionId) {
+                            const beaconLink = `https://ridewatchapp.com/rider.html?session=${riderSessionId}`;
+                            await sendText(msg.from,
+                                `📍 Location received!\n\n` +
+                                `For *real-time tracking*, open the Rider Beacon:\n` +
+                                `🔗 ${beaconLink}\n\n` +
+                                `_Keep the page open during delivery for live GPS tracking._`
+                            );
+                        } else {
+                            await sendText(msg.from,
+                                `📍 Location received!\n` +
+                                `You don't have an active delivery right now. Type *"menu"* to see your assignments.`
+                            );
+                        }
+                        break;
+                    }
                     case 'HELP':
                         await sendText(msg.from,
                             `🛵 *Rider Commands*\n` +
@@ -221,12 +241,11 @@ export default async function handler(request, response) {
                     break;
 
                 case 'LOCATION_SHARED':
-                    // Phase 5: Live location tracking
                     if (vendor) {
                         await sendText(msg.from,
                             `📍 Location received!\n` +
                             `${params.address || `${params.latitude}, ${params.longitude}`}\n\n` +
-                            `_Live location tracking for riders coming soon!_`
+                            `_You can include locations when creating deliveries._`
                         );
                     }
                     break;
