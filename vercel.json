@@ -9,6 +9,10 @@
   ],
   "rewrites": [
     {
+      "source": "/t/:sessionId",
+      "destination": "/track.html?session=:sessionId"
+    },
+    {
       "source": "/assets/(.*)",
       "destination": "/admin-app/dist/assets/$1"
     },
